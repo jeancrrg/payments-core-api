@@ -1,5 +1,6 @@
 package com.billing.payments_core_api.model.entity;
 
+import com.billing.payments_core_api.model.enums.RefundStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

@@ -1,5 +1,6 @@
 package com.billing.payments_core_api.model.entity;
 
+import com.billing.payments_core_api.model.enums.PaymentStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -86,4 +87,5 @@ public class Payment implements Serializable {
     void onUpdate() {
         updatedAt = OffsetDateTime.now();
     }
+
 }

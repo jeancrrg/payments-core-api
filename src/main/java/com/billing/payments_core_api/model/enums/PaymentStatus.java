@@ -1,8 +1,5 @@
-package com.billing.payments_core_api.model.entity;
+package com.billing.payments_core_api.model.enums;
 
-/**
- * Lifecycle states for a payment in the system.
- */
 public enum PaymentStatus {
     PENDING,
     PROCESSING,

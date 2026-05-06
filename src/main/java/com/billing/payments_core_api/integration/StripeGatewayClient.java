@@ -1,4 +1,4 @@
-package com.billing.payments_core_api.integration.stripe;
+package com.billing.payments_core_api.integration;
 
 import com.billing.payments_core_api.exception.StripeIntegrationException;
 import com.stripe.exception.StripeException;

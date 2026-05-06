@@ -1,4 +1,4 @@
-package com.billing.payments_core_api.exception;
+package com.billing.payments_core_api.exception.handler;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;

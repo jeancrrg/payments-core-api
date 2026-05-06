@@ -14,10 +14,9 @@ public interface PaymentMapper {
 
     PaymentResponse toResponse(Payment entity);
 
-    List<PaymentResponse> toResponseList(List<Payment> entities);
-
     @Mapping(target = "paymentId", source = "payment.id")
     RefundResponse toRefundResponse(Refund entity);
 
     List<RefundResponse> toRefundResponseList(List<Refund> entities);
+
 }

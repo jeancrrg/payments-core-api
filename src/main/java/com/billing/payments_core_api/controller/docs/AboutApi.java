@@ -6,9 +6,10 @@ import org.springframework.http.ResponseEntity;
 
 import java.util.Map;
 
-@Tag(name = "Health", description = "Liveness check")
-public interface HealthApi {
+@Tag(name = "About", description = "Liveness check")
+public interface AboutApi {
 
     @Operation(summary = "Liveness check")
     ResponseEntity<Map<String, Object>> health();
+
 }

@@ -2,13 +2,13 @@ package com.billing.payments_core_api.service;
 
 import com.billing.payments_core_api.config.RedisConfig;
 import com.billing.payments_core_api.exception.PaymentNotFoundException;
-import com.billing.payments_core_api.integration.stripe.StripeGatewayClient;
+import com.billing.payments_core_api.integration.StripeGatewayClient;
 import com.billing.payments_core_api.mapper.PaymentMapper;
-import com.billing.payments_core_api.model.dto.request.CreatePaymentRequest;
+import com.billing.payments_core_api.model.dto.request.PaymentRequest;
 import com.billing.payments_core_api.model.dto.response.PageResponse;
 import com.billing.payments_core_api.model.dto.response.PaymentResponse;
 import com.billing.payments_core_api.model.entity.Payment;
-import com.billing.payments_core_api.model.entity.PaymentStatus;
+import com.billing.payments_core_api.model.enums.PaymentStatus;
 import com.billing.payments_core_api.repository.PaymentRepository;
 import com.billing.payments_core_api.service.async.PaymentNotificationService;
 import com.stripe.model.PaymentIntent;
@@ -37,7 +37,7 @@ public class PaymentService {
     @Caching(evict = {
             @CacheEvict(value = RedisConfig.CACHE_CUSTOMER_PAYMENTS, key = "#request.customerId()")
     })
-    public PaymentResponse createPayment(CreatePaymentRequest request) {
+    public PaymentResponse createPayment(PaymentRequest request) {
         log.info("Creating payment for customer={}, amount={} {}",
                 request.customerId(), request.amount(), request.currency());
 
@@ -71,14 +71,12 @@ public class PaymentService {
         } catch (RuntimeException ex) {
             log.error("Payment {} failed during Stripe processing: {}", payment.getId(), ex.getMessage());
             payment.setStatus(PaymentStatus.FAILED);
-            payment.setFailureReason(truncate(ex.getMessage(), 512));
             paymentRepository.save(payment);
-            // Async notification still fires for failures
+            payment.setFailureReason(truncate(ex.getMessage()));
             notificationService.notifyPaymentProcessed(payment);
             throw ex;
         }
 
-        // Fire-and-forget side effects on the dedicated executor
         notificationService.notifyPaymentProcessed(payment);
         notificationService.auditPaymentEvent(payment, "PAYMENT_CREATED");
 
@@ -145,7 +143,9 @@ public class PaymentService {
     }
 
     public static PaymentStatus mapStripeStatus(String stripeStatus) {
-        if (stripeStatus == null) return PaymentStatus.PENDING;
+        if (stripeStatus == null) {
+            return PaymentStatus.PENDING;
+        }
         return switch (stripeStatus.toLowerCase()) {
             case "succeeded" -> PaymentStatus.SUCCEEDED;
             case "processing" -> PaymentStatus.PROCESSING;
@@ -156,8 +156,11 @@ public class PaymentService {
         };
     }
 
-    private String truncate(String s, int max) {
-        if (s == null) return null;
-        return s.length() <= max ? s : s.substring(0, max);
+    private String truncate(String text) {
+        if (text == null) {
+            return null;
+        }
+        return text.length() <= 512 ? text : text.substring(0, 512);
     }
+
 }

@@ -1,5 +1,6 @@
-package com.billing.payments_core_api.exception;
+package com.billing.payments_core_api.exception.handler;
 
+import com.billing.payments_core_api.exception.*;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -21,7 +22,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(PaymentNotFoundException.class)
     public ResponseEntity<ApiError> handlePaymentNotFound(PaymentNotFoundException ex, HttpServletRequest request) {
-        log.warn("Payment not found: {}", ex.getMessage());
+        log.info("Payment not found: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                 ApiError.of(HttpStatus.NOT_FOUND.value(), HttpStatus.NOT_FOUND.getReasonPhrase(),
                         "PAYMENT_NOT_FOUND", ex.getMessage(), request.getRequestURI())
@@ -30,7 +31,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RefundNotFoundException.class)
     public ResponseEntity<ApiError> handleRefundNotFound(RefundNotFoundException ex, HttpServletRequest request) {
-        log.warn("Refund not found: {}", ex.getMessage());
+        log.info("Refund not found: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                 ApiError.of(HttpStatus.NOT_FOUND.value(), HttpStatus.NOT_FOUND.getReasonPhrase(),
                         "REFUND_NOT_FOUND", ex.getMessage(), request.getRequestURI())
@@ -39,7 +40,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(InvalidRefundException.class)
     public ResponseEntity<ApiError> handleInvalidRefund(InvalidRefundException ex, HttpServletRequest request) {
-        log.warn("Invalid refund: {}", ex.getMessage());
+        log.info("Invalid refund: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(
                 ApiError.of(HttpStatus.UNPROCESSABLE_ENTITY.value(), HttpStatus.UNPROCESSABLE_ENTITY.getReasonPhrase(),
                         "INVALID_REFUND", ex.getMessage(), request.getRequestURI())

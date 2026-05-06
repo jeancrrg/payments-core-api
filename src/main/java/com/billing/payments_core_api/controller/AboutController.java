@@ -1,6 +1,6 @@
 package com.billing.payments_core_api.controller;
 
-import com.billing.payments_core_api.controller.docs.HealthApi;
+import com.billing.payments_core_api.controller.docs.AboutApi;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,8 +11,8 @@ import java.time.OffsetDateTime;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/v1/health")
-public class HealthController implements HealthApi {
+@RequestMapping("/v1/about")
+public class AboutController implements AboutApi {
 
     @Value("${spring.application.name}")
     private String appName;
@@ -21,7 +21,6 @@ public class HealthController implements HealthApi {
     private String profile;
 
     @GetMapping
-    @Override
     public ResponseEntity<Map<String, Object>> health() {
         return ResponseEntity.ok(Map.of(
                 "status", "UP",
@@ -30,4 +29,5 @@ public class HealthController implements HealthApi {
                 "timestamp", OffsetDateTime.now()
         ));
     }
+
 }

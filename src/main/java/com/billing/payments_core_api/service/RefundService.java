@@ -3,14 +3,14 @@ package com.billing.payments_core_api.service;
 import com.billing.payments_core_api.config.RedisConfig;
 import com.billing.payments_core_api.exception.InvalidRefundException;
 import com.billing.payments_core_api.exception.RefundNotFoundException;
-import com.billing.payments_core_api.integration.stripe.StripeGatewayClient;
+import com.billing.payments_core_api.integration.StripeGatewayClient;
 import com.billing.payments_core_api.mapper.PaymentMapper;
 import com.billing.payments_core_api.model.dto.request.RefundRequest;
 import com.billing.payments_core_api.model.dto.response.RefundResponse;
 import com.billing.payments_core_api.model.entity.Payment;
-import com.billing.payments_core_api.model.entity.PaymentStatus;
+import com.billing.payments_core_api.model.enums.PaymentStatus;
 import com.billing.payments_core_api.model.entity.Refund;
-import com.billing.payments_core_api.model.entity.RefundStatus;
+import com.billing.payments_core_api.model.enums.RefundStatus;
 import com.billing.payments_core_api.repository.RefundRepository;
 import com.billing.payments_core_api.service.async.PaymentNotificationService;
 import lombok.RequiredArgsConstructor;
@@ -46,8 +46,10 @@ public class RefundService {
 
         validateRefundEligible(payment);
 
-        BigDecimal alreadyRefunded = refundRepository.sumRefundedAmountForPayment(payment.getId());
-        if (alreadyRefunded == null) alreadyRefunded = BigDecimal.ZERO;
+        BigDecimal alreadyRefunded = refundRepository.sumRefundedAmountForPayment(payment.getId(), RefundStatus.FAILED);
+        if (alreadyRefunded == null) {
+            alreadyRefunded = BigDecimal.ZERO;
+        }
         BigDecimal refundAmount = request.amount() != null ? request.amount() : payment.getAmount().subtract(alreadyRefunded);
 
         if (refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
@@ -80,9 +82,7 @@ public class RefundService {
             refund.setStatus(mapStripeRefundStatus(stripeRefund.getStatus()));
             refund = refundRepository.save(refund);
 
-            // Update parent payment status based on cumulative refund
-            BigDecimal totalRefunded = totalAfter;
-            if (totalRefunded.compareTo(payment.getAmount()) >= 0) {
+            if (totalAfter.compareTo(payment.getAmount()) >= 0) {
                 payment.setStatus(PaymentStatus.REFUNDED);
             } else {
                 payment.setStatus(PaymentStatus.PARTIALLY_REFUNDED);
@@ -90,7 +90,7 @@ public class RefundService {
         } catch (RuntimeException ex) {
             log.error("Refund {} failed: {}", refund.getId(), ex.getMessage());
             refund.setStatus(RefundStatus.FAILED);
-            refund.setFailureReason(truncate(ex.getMessage(), 512));
+            refund.setFailureReason(truncate(ex.getMessage()));
             refundRepository.save(refund);
             notificationService.notifyRefundProcessed(refund);
             throw ex;
@@ -128,7 +128,9 @@ public class RefundService {
     }
 
     private RefundStatus mapStripeRefundStatus(String stripeStatus) {
-        if (stripeStatus == null) return RefundStatus.PENDING;
+        if (stripeStatus == null) {
+            return RefundStatus.PENDING;
+        }
         return switch (stripeStatus.toLowerCase()) {
             case "succeeded" -> RefundStatus.SUCCEEDED;
             case "pending" -> RefundStatus.PENDING;
@@ -137,8 +139,11 @@ public class RefundService {
         };
     }
 
-    private String truncate(String s, int max) {
-        if (s == null) return null;
-        return s.length() <= max ? s : s.substring(0, max);
+    private String truncate(String text) {
+        if (text == null) {
+            return null;
+        }
+        return text.length() <= 512 ? text : text.substring(0, 512);
     }
+
 }

@@ -1,6 +1,6 @@
 package com.billing.payments_core_api.controller.docs;
 
-import com.billing.payments_core_api.model.dto.request.CreatePaymentRequest;
+import com.billing.payments_core_api.model.dto.request.PaymentRequest;
 import com.billing.payments_core_api.model.dto.response.PageResponse;
 import com.billing.payments_core_api.model.dto.response.PaymentResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,7 +31,7 @@ public interface PaymentsApi {
             @ApiResponse(responseCode = "502", description = "Stripe gateway error"),
             @ApiResponse(responseCode = "503", description = "Stripe temporarily unavailable (circuit breaker open)")
     })
-    ResponseEntity<PaymentResponse> create(@Valid @RequestBody CreatePaymentRequest request,
+    ResponseEntity<PaymentResponse> create(@Valid @RequestBody PaymentRequest request,
                                            UriComponentsBuilder uriBuilder);
 
     @Operation(summary = "Find payment by id", description = "Returns the payment. Result is served from Redis cache when available.")

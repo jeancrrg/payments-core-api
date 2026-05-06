@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/refunds")
+@RequestMapping("/v1/refunds")
 @RequiredArgsConstructor
 public class RefundController implements RefundsApi {
 
@@ -31,7 +31,7 @@ public class RefundController implements RefundsApi {
     public ResponseEntity<RefundResponse> create(@Valid @RequestBody RefundRequest request,
                                                  UriComponentsBuilder uriBuilder) {
         RefundResponse response = refundService.requestRefund(request);
-        URI location = uriBuilder.path("/api/v1/refunds/{id}").buildAndExpand(response.id()).toUri();
+        URI location = uriBuilder.path("/v1/refunds/{id}").buildAndExpand(response.id()).toUri();
         return ResponseEntity.created(location).body(response);
     }
 
