@@ -1,0 +1,14 @@
+target/
+.git/
+.gitignore
+.gitattributes
+.idea/
+.vscode/
+*.iml
+*.md
+HELP.md
+PLANO_EXECUCAO.md
+README.md
+.env
+.env.local
+docker-compose.override.yml

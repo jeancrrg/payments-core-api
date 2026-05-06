@@ -1,0 +1,71 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: payments-postgres
+    environment:
+      POSTGRES_DB: payments
+      POSTGRES_USER: ${DB_USERNAME:-payments}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-payments}
+    ports:
+      - "5432:5432"
+    volumes:
+      - payments_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-payments} -d payments"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - payments-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: payments-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - payments_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks:
+      - payments-net
+
+  payments-core:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: payments-core-api:latest
+    container_name: payments-core
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      DB_URL: jdbc:postgresql://postgres:5432/payments
+      DB_USERNAME: ${DB_USERNAME:-payments}
+      DB_PASSWORD: ${DB_PASSWORD:-payments}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      STRIPE_API_KEY: ${STRIPE_API_KEY:-sk_test_replace_me}
+      SERVER_PORT: 8080
+      JAVA_OPTS: "-XX:+UseG1GC -XX:MaxRAMPercentage=75.0"
+    ports:
+      - "8080:8080"
+    networks:
+      - payments-net
+    restart: unless-stopped
+
+volumes:
+  payments_pg_data:
+  payments_redis_data:
+
+networks:
+  payments-net:
+    driver: bridge
