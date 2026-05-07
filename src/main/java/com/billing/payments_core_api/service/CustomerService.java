@@ -6,13 +6,14 @@ import com.billing.payments_core_api.exception.ResourceNotFoundException;
 import com.billing.payments_core_api.mapper.CustomerMapper;
 import com.billing.payments_core_api.model.dto.request.CustomerRequest;
 import com.billing.payments_core_api.model.dto.response.CustomerResponse;
+import com.billing.payments_core_api.model.dto.response.PageResponse;
 import com.billing.payments_core_api.model.entity.Customer;
 import com.billing.payments_core_api.repository.CustomerRepository;
 import com.billing.payments_core_api.repository.PaymentRepository;
+import org.springframework.data.domain.Pageable;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +28,11 @@ public class CustomerService {
     private final PaymentRepository paymentRepository;
     private final CustomerMapper customerMapper;
 
+    @Transactional(readOnly = true)
+    public PageResponse<CustomerResponse> findAll(Pageable pageable) {
+        return PageResponse.from(customerRepository.findAll(pageable).map(customerMapper::toResponse));
+    }
+
     @Transactional
     public CustomerResponse create(CustomerRequest request) {
         log.info("Creating customer cpf={}", request.cpf());
@@ -39,21 +45,6 @@ public class CustomerService {
                 .cpf(normalizedCpf)
                 .build();
         return customerMapper.toResponse(customerRepository.save(customer));
-    }
-
-    @Transactional(readOnly = true)
-    @Cacheable(value = RedisConfig.CACHE_CUSTOMER_BY_ID, key = "#id")
-    public CustomerResponse findById(UUID id) {
-        log.debug("Cache MISS for customer id={} - querying database", id);
-        return customerMapper.toResponse(getOrThrow(id));
-    }
-
-    @Transactional(readOnly = true)
-    public CustomerResponse findByCpf(String cpf) {
-        String normalizedCpf = cpf.replaceAll("[^0-9]", "");
-        return customerRepository.findByCpf(normalizedCpf)
-                .map(customerMapper::toResponse)
-                .orElseThrow(() -> new ResourceNotFoundException("Customer not found for CPF: " + normalizedCpf));
     }
 
     @Transactional
@@ -85,4 +76,5 @@ public class CustomerService {
         return customerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found: " + id));
     }
+
 }

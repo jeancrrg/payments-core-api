@@ -5,42 +5,49 @@ import jakarta.validation.ConstraintValidatorContext;
 
 public class CpfValidator implements ConstraintValidator<ValidCpf, String> {
 
-    private static final String DIGITS_ONLY_PATTERN = "[0-9]{11}";
+    private static final String UNMASKED_PATTERN = "[0-9]{11}";
+    private static final String MASKED_PATTERN = "[0-9]{3}\\.[0-9]{3}\\.[0-9]{3}-[0-9]{2}";
 
     @Override
     public boolean isValid(String value, ConstraintValidatorContext context) {
         if (value == null) {
             return false;
         }
-        return hasValidFormat(value)
-                && isNotAllSameDigit(value)
-                && hasValidCheckDigits(value);
+        if (!hasValidFormat(value)) {
+            return false;
+        }
+        String digits = stripMask(value);
+        return isNotAllSameDigit(digits) && hasValidCheckDigits(digits);
     }
 
     private boolean hasValidFormat(String cpf) {
-        return cpf.matches(DIGITS_ONLY_PATTERN);
+        return cpf.matches(UNMASKED_PATTERN) || cpf.matches(MASKED_PATTERN);
     }
 
-    private boolean isNotAllSameDigit(String cpf) {
-        return cpf.chars().distinct().count() > 1;
+    private String stripMask(String cpf) {
+        return cpf.replaceAll("[^0-9]", "");
     }
 
-    private boolean hasValidCheckDigits(String cpf) {
-        return calculateCheckDigit(cpf, 9) == digitAt(cpf, 9)
-                && calculateCheckDigit(cpf, 10) == digitAt(cpf, 10);
+    private boolean isNotAllSameDigit(String digits) {
+        return digits.chars().distinct().count() > 1;
     }
 
-    private int calculateCheckDigit(String cpf, int position) {
+    private boolean hasValidCheckDigits(String digits) {
+        return calculateCheckDigit(digits, 9) == digitAt(digits, 9)
+                && calculateCheckDigit(digits, 10) == digitAt(digits, 10);
+    }
+
+    private int calculateCheckDigit(String digits, int position) {
         int sum = 0;
         for (int i = 0; i < position; i++) {
-            sum += digitAt(cpf, i) * (position + 1 - i);
+            sum += digitAt(digits, i) * (position + 1 - i);
         }
         int remainder = 11 - (sum % 11);
         return remainder >= 10 ? 0 : remainder;
     }
 
-    private int digitAt(String cpf, int index) {
-        return cpf.charAt(index) - '0';
+    private int digitAt(String digits, int index) {
+        return digits.charAt(index) - '0';
     }
 
 }

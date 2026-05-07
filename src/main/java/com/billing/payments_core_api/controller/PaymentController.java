@@ -1,6 +1,6 @@
 package com.billing.payments_core_api.controller;
 
-import com.billing.payments_core_api.controller.docs.PaymentsApi;
+import com.billing.payments_core_api.controller.docs.PaymentApi;
 import com.billing.payments_core_api.model.dto.request.PaymentRequest;
 import com.billing.payments_core_api.model.dto.response.PageResponse;
 import com.billing.payments_core_api.model.dto.response.PaymentResponse;
@@ -25,7 +25,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/v1/payments")
 @RequiredArgsConstructor
-public class PaymentController implements PaymentsApi {
+public class PaymentController implements PaymentApi {
 
     private final PaymentService paymentService;
 

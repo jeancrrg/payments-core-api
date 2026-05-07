@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Tag(name = "Refunds", description = "Operations to request and consult refunds via Stripe")
-public interface RefundsApi {
+public interface RefundApi {
 
     @Operation(summary = "Request a refund", description = "Issues a refund through Stripe (with retry). If amount is omitted, the remaining refundable amount is refunded.")
     @ApiResponses({

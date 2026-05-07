@@ -1,6 +1,6 @@
 package com.billing.payments_core_api.controller;
 
-import com.billing.payments_core_api.controller.docs.RefundsApi;
+import com.billing.payments_core_api.controller.docs.RefundApi;
 import com.billing.payments_core_api.model.dto.request.RefundRequest;
 import com.billing.payments_core_api.model.dto.response.RefundResponse;
 import com.billing.payments_core_api.service.RefundService;
@@ -22,7 +22,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/v1/refunds")
 @RequiredArgsConstructor
-public class RefundController implements RefundsApi {
+public class RefundController implements RefundApi {
 
     private final RefundService refundService;
 

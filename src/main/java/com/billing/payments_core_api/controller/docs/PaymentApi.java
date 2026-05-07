@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @Tag(name = "Payments", description = "Operations to create and consult payments")
-public interface PaymentsApi {
+public interface PaymentApi {
 
     @Operation(summary = "Create a new payment", description = "Creates a payment via Stripe (with Resilience4j retry). Returns 201 with the persisted payment.")
     @ApiResponses({
