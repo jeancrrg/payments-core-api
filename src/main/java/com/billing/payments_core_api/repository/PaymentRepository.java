@@ -11,6 +11,7 @@ import java.util.UUID;
 @Repository
 public interface PaymentRepository extends JpaRepository<Payment, UUID> {
 
-    Page<Payment> findByCustomerId(String customerId, Pageable pageable);
+    Page<Payment> findByCustomerId(UUID customerId, Pageable pageable);
 
+    boolean existsByCustomerId(UUID customerId);
 }

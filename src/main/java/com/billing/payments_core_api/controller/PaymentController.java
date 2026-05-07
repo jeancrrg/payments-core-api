@@ -54,7 +54,7 @@ public class PaymentController implements PaymentsApi {
     }
 
     @GetMapping("/customer/{customerId}")
-    public ResponseEntity<PageResponse<PaymentResponse>> findByCustomer(@PathVariable String customerId, Pageable pageable) {
+    public ResponseEntity<PageResponse<PaymentResponse>> findByCustomer(@PathVariable UUID customerId, Pageable pageable) {
         return ResponseEntity.ok(paymentService.findByCustomer(customerId, pageable));
     }
 }

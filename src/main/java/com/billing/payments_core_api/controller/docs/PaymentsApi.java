@@ -51,6 +51,6 @@ public interface PaymentsApi {
     @Operation(summary = "List payments by customer", description = "Paginated list of customer payments. Cached in Redis.")
     @ApiResponse(responseCode = "200", description = "Page of payments")
     ResponseEntity<PageResponse<PaymentResponse>> findByCustomer(
-            @Parameter(description = "Customer id") @PathVariable String customerId,
+            @Parameter(description = "Customer id") @PathVariable UUID customerId,
             @Parameter(hidden = true) Pageable pageable);
 }

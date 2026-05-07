@@ -1,32 +1,25 @@
 package com.billing.payments_core_api.exception.handler;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import io.swagger.v3.oas.annotations.media.Schema;
+import com.fasterxml.jackson.annotation.JsonFormat;
 
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 
-@Schema(description = "Standard error envelope returned by the API")
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public record ApiError(
-        @Schema(description = "Error timestamp") OffsetDateTime timestamp,
-        @Schema(description = "HTTP status code") int status,
-        @Schema(description = "HTTP status description") String error,
-        @Schema(description = "Application-specific error code") String code,
-        @Schema(description = "Human-readable error message") String message,
-        @Schema(description = "Originating request path") String path,
-        @Schema(description = "Per-field validation messages") List<FieldError> fieldErrors
+        int status,
+        String error,
+        String message,
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+        LocalDateTime timestamp,
+        List<FieldError> errors
 ) {
 
-    public static ApiError of(int status, String error, String code, String message, String path) {
-        return new ApiError(OffsetDateTime.now(), status, error, code, message, path, null);
+    public static ApiError of(int status, String error, String message) {
+        return new ApiError(status, error, message, LocalDateTime.now(), null);
     }
 
-    public static ApiError of(int status, String error, String code, String message, String path, List<FieldError> fieldErrors) {
-        return new ApiError(OffsetDateTime.now(), status, error, code, message, path, fieldErrors);
+    public static ApiError of(int status, String error, String message, List<FieldError> errors) {
+        return new ApiError(status, error, message, LocalDateTime.now(), errors);
     }
 
-    @Schema(description = "Validation error for a single field")
-    public record FieldError(String field, String message) {
-    }
 }

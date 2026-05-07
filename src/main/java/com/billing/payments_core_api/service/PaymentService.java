@@ -1,7 +1,7 @@
 package com.billing.payments_core_api.service;
 
 import com.billing.payments_core_api.config.RedisConfig;
-import com.billing.payments_core_api.exception.PaymentNotFoundException;
+import com.billing.payments_core_api.exception.ResourceNotFoundException;
 import com.billing.payments_core_api.integration.StripeGatewayClient;
 import com.billing.payments_core_api.mapper.PaymentMapper;
 import com.billing.payments_core_api.model.dto.request.PaymentRequest;
@@ -9,6 +9,7 @@ import com.billing.payments_core_api.model.dto.response.PageResponse;
 import com.billing.payments_core_api.model.dto.response.PaymentResponse;
 import com.billing.payments_core_api.model.entity.Payment;
 import com.billing.payments_core_api.model.enums.PaymentStatus;
+import com.billing.payments_core_api.repository.CustomerRepository;
 import com.billing.payments_core_api.repository.PaymentRepository;
 import com.billing.payments_core_api.service.async.PaymentNotificationService;
 import com.stripe.model.PaymentIntent;
@@ -29,6 +30,7 @@ import java.util.UUID;
 public class PaymentService {
 
     private final PaymentRepository paymentRepository;
+    private final CustomerRepository customerRepository;
     private final StripeGatewayClient stripeClient;
     private final PaymentNotificationService notificationService;
     private final PaymentMapper paymentMapper;
@@ -40,6 +42,9 @@ public class PaymentService {
     public PaymentResponse createPayment(PaymentRequest request) {
         log.info("Creating payment for customer={}, amount={} {}",
                 request.customerId(), request.amount(), request.currency());
+        if (!customerRepository.existsById(request.customerId())) {
+            throw new ResourceNotFoundException("Customer not found: " + request.customerId());
+        }
         Payment payment = buildAndSaveInitialPayment(request);
         payment = executeStripeProcessing(payment, request);
         notificationService.notifyPaymentProcessed(payment);
@@ -52,7 +57,7 @@ public class PaymentService {
     public PaymentResponse findById(UUID id) {
         log.debug("Cache MISS for payment id={} - querying database", id);
         Payment payment = paymentRepository.findById(id)
-                .orElseThrow(() -> new PaymentNotFoundException("Payment not found: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found: " + id));
         return paymentMapper.toResponse(payment);
     }
 
@@ -60,13 +65,13 @@ public class PaymentService {
     public PaymentStatus getStatus(UUID id) {
         return paymentRepository.findById(id)
                 .map(Payment::getStatus)
-                .orElseThrow(() -> new PaymentNotFoundException("Payment not found: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found: " + id));
     }
 
     @Transactional(readOnly = true)
     public Payment findEntityById(UUID id) {
         return paymentRepository.findById(id)
-                .orElseThrow(() -> new PaymentNotFoundException("Payment not found: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found: " + id));
     }
 
     @Transactional(readOnly = true)
@@ -74,7 +79,7 @@ public class PaymentService {
             value = RedisConfig.CACHE_CUSTOMER_PAYMENTS,
             key = "#customerId + ':' + #pageable.pageNumber + ':' + #pageable.pageSize"
     )
-    public PageResponse<PaymentResponse> findByCustomer(String customerId, Pageable pageable) {
+    public PageResponse<PaymentResponse> findByCustomer(UUID customerId, Pageable pageable) {
         log.debug("Cache MISS for customer payments customerId={} page={} - querying database",
                 customerId, pageable.getPageNumber());
         return PageResponse.from(
@@ -90,7 +95,7 @@ public class PaymentService {
     })
     public PaymentResponse syncWithStripe(UUID id) {
         Payment payment = paymentRepository.findById(id)
-                .orElseThrow(() -> new PaymentNotFoundException("Payment not found: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found: " + id));
         if (payment.getStripePaymentIntentId() == null) {
             return paymentMapper.toResponse(payment);
         }
@@ -135,7 +140,7 @@ public class PaymentService {
         try {
             PaymentIntent intent = stripeClient.createPaymentIntent(
                     request.amount(), request.currency(),
-                    request.customerId(), request.paymentMethodId(), request.description());
+                    request.customerId().toString(), request.paymentMethodId(), request.description());
             payment.setStripePaymentIntentId(intent.getId());
             payment.setStatus(mapStripeStatus(intent.getStatus()));
             payment = paymentRepository.save(payment);

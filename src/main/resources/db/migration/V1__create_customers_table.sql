@@ -8,8 +8,6 @@ CREATE TABLE customers (
     CONSTRAINT uq_customers_cpf UNIQUE (cpf)
 );
 
-CREATE INDEX idx_customers_cpf ON customers (cpf);
-
 COMMENT ON TABLE customers IS 'Clientes cadastrados na plataforma de pagamentos';
 COMMENT ON COLUMN customers.id IS 'Identificador único do cliente (UUID gerado pela aplicação)';
 COMMENT ON COLUMN customers.name IS 'Nome completo do cliente';

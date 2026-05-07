@@ -9,7 +9,7 @@ CREATE TABLE refunds (
     failure_reason      VARCHAR(512),
     created_at          TIMESTAMP WITH TIME ZONE NOT NULL,
     updated_at          TIMESTAMP WITH TIME ZONE NOT NULL,
-    CONSTRAINT fk_refunds_payment FOREIGN KEY (payment_id) REFERENCES payments (id)
+    CONSTRAINT fk_refunds_payment FOREIGN KEY (payment_id) REFERENCES payments (id) ON DELETE RESTRICT
 );
 
 CREATE INDEX idx_refunds_payment_id ON refunds (payment_id);

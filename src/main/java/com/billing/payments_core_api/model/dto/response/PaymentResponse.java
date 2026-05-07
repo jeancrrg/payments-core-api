@@ -8,7 +8,7 @@ import java.util.UUID;
 
 public record PaymentResponse(
         UUID id,
-        String customerId,
+        UUID customerId,
         String stripePaymentIntentId,
         BigDecimal amount,
         String currency,

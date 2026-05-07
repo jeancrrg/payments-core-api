@@ -1,8 +1,8 @@
 package com.billing.payments_core_api.service;
 
 import com.billing.payments_core_api.config.RedisConfig;
-import com.billing.payments_core_api.exception.InvalidRefundException;
-import com.billing.payments_core_api.exception.RefundNotFoundException;
+import com.billing.payments_core_api.exception.BusinessException;
+import com.billing.payments_core_api.exception.ResourceNotFoundException;
 import com.billing.payments_core_api.integration.StripeGatewayClient;
 import com.billing.payments_core_api.mapper.PaymentMapper;
 import com.billing.payments_core_api.model.dto.request.RefundRequest;
@@ -58,7 +58,7 @@ public class RefundService {
     public RefundResponse findById(UUID id) {
         log.debug("Cache MISS for refund id={} - querying database", id);
         Refund refund = refundRepository.findById(id)
-                .orElseThrow(() -> new RefundNotFoundException("Refund not found: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Refund not found: " + id));
         return paymentMapper.toRefundResponse(refund);
     }
 
@@ -69,15 +69,15 @@ public class RefundService {
 
     private void validateRefundEligible(Payment payment) {
         if (payment.getStripePaymentIntentId() == null) {
-            throw new InvalidRefundException("Payment has no associated Stripe transaction and cannot be refunded");
+            throw new BusinessException("Payment has no associated Stripe transaction and cannot be refunded");
         }
         PaymentStatus s = payment.getStatus();
         if (s == PaymentStatus.PENDING || s == PaymentStatus.PROCESSING
                 || s == PaymentStatus.FAILED || s == PaymentStatus.CANCELLED) {
-            throw new InvalidRefundException("Payment in status " + s + " cannot be refunded");
+            throw new BusinessException("Payment in status " + s + " cannot be refunded");
         }
         if (s == PaymentStatus.REFUNDED) {
-            throw new InvalidRefundException("Payment is already fully refunded");
+            throw new BusinessException("Payment is already fully refunded");
         }
     }
 
@@ -94,11 +94,11 @@ public class RefundService {
 
     private void validateRefundAmounts(BigDecimal refundAmount, BigDecimal alreadyRefunded, BigDecimal paymentAmount) {
         if (refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new InvalidRefundException("Refund amount must be greater than zero");
+            throw new BusinessException("Refund amount must be greater than zero");
         }
         BigDecimal totalAfter = alreadyRefunded.add(refundAmount);
         if (totalAfter.compareTo(paymentAmount) > 0) {
-            throw new InvalidRefundException(
+            throw new BusinessException(
                     "Refund amount " + refundAmount + " exceeds remaining refundable amount " +
                             paymentAmount.subtract(alreadyRefunded));
         }

@@ -40,8 +40,8 @@ public class Payment implements Serializable {
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    @Column(name = "customer_id", nullable = false, length = 64)
-    private String customerId;
+    @Column(name = "customer_id", nullable = false)
+    private UUID customerId;
 
     @Column(name = "stripe_payment_intent_id", length = 128)
     private String stripePaymentIntentId;

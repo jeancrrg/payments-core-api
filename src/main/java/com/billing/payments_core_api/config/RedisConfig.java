@@ -31,6 +31,7 @@ public class RedisConfig {
     public static final String CACHE_CUSTOMER_PAYMENTS = "customerPayments";
     public static final String CACHE_PAYMENT_BY_ID = "paymentById";
     public static final String CACHE_REFUND_BY_ID = "refundById";
+    public static final String CACHE_CUSTOMER_BY_ID = "customerById";
 
     @Value("${cache.ttl.customer-payments:300}")
     private long customerPaymentsTtl;
@@ -40,6 +41,9 @@ public class RedisConfig {
 
     @Value("${cache.ttl.refund-by-id:600}")
     private long refundByIdTtl;
+
+    @Value("${cache.ttl.customer-by-id:600}")
+    private long customerByIdTtl;
 
     @Bean
     public ObjectMapper redisObjectMapper() {
@@ -69,9 +73,10 @@ public class RedisConfig {
         perCache.put(CACHE_CUSTOMER_PAYMENTS, defaultConfig.entryTtl(Duration.ofSeconds(customerPaymentsTtl)));
         perCache.put(CACHE_PAYMENT_BY_ID, defaultConfig.entryTtl(Duration.ofSeconds(paymentByIdTtl)));
         perCache.put(CACHE_REFUND_BY_ID, defaultConfig.entryTtl(Duration.ofSeconds(refundByIdTtl)));
+        perCache.put(CACHE_CUSTOMER_BY_ID, defaultConfig.entryTtl(Duration.ofSeconds(customerByIdTtl)));
 
-        log.info("Redis cache configured: customerPayments={}s, paymentById={}s, refundById={}s",
-                customerPaymentsTtl, paymentByIdTtl, refundByIdTtl);
+        log.info("Redis cache configured: customerPayments={}s, paymentById={}s, refundById={}s, customerById={}s",
+                customerPaymentsTtl, paymentByIdTtl, refundByIdTtl, customerByIdTtl);
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)

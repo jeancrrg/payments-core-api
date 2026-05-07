@@ -10,7 +10,7 @@ CREATE TABLE payments (
     failure_reason              VARCHAR(512),
     created_at                  TIMESTAMP WITH TIME ZONE NOT NULL,
     updated_at                  TIMESTAMP WITH TIME ZONE NOT NULL,
-    CONSTRAINT fk_payments_customer FOREIGN KEY (customer_id) REFERENCES customers (id)
+    CONSTRAINT fk_payments_customer FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE RESTRICT
 );
 
 CREATE INDEX idx_payments_customer_id ON payments (customer_id);
