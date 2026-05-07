@@ -37,17 +37,20 @@ public class CustomerController implements CustomerApi {
         return ResponseEntity.ok(customerService.findAll(pageable));
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<CustomerResponse> findById(@PathVariable UUID id) {
+        return ResponseEntity.ok(customerService.findById(id));
+    }
+
     @PostMapping
-    public ResponseEntity<CustomerResponse> create(@Valid @RequestBody CustomerRequest request,
-                                                   UriComponentsBuilder uriBuilder) {
+    public ResponseEntity<CustomerResponse> create(@Valid @RequestBody CustomerRequest request, UriComponentsBuilder uriBuilder) {
         CustomerResponse response = customerService.create(request);
         URI location = uriBuilder.path("/v1/customers/{id}").buildAndExpand(response.id()).toUri();
         return ResponseEntity.created(location).body(response);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<CustomerResponse> update(@PathVariable UUID id,
-                                                   @Valid @RequestBody CustomerRequest request) {
+    public ResponseEntity<CustomerResponse> update(@PathVariable UUID id, @Valid @RequestBody CustomerRequest request) {
         return ResponseEntity.ok(customerService.update(id, request));
     }
 

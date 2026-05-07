@@ -9,7 +9,7 @@ import com.billing.payments_core_api.model.dto.response.CustomerResponse;
 import com.billing.payments_core_api.model.dto.response.PageResponse;
 import com.billing.payments_core_api.model.entity.Customer;
 import com.billing.payments_core_api.repository.CustomerRepository;
-import com.billing.payments_core_api.repository.PaymentRepository;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Pageable;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,12 +25,19 @@ import java.util.UUID;
 public class CustomerService {
 
     private final CustomerRepository customerRepository;
-    private final PaymentRepository paymentRepository;
     private final CustomerMapper customerMapper;
+    private final PaymentService paymentService;
 
     @Transactional(readOnly = true)
     public PageResponse<CustomerResponse> findAll(Pageable pageable) {
         return PageResponse.from(customerRepository.findAll(pageable).map(customerMapper::toResponse));
+    }
+
+    @Transactional(readOnly = true)
+    @Cacheable(value = RedisConfig.CACHE_PAYMENT_BY_ID, key = "#id")
+    public CustomerResponse findById(UUID id) {
+        log.debug("Cache MISS for payment id={} - querying database", id);
+        return customerMapper.toResponse(getClient(id));
     }
 
     @Transactional
@@ -51,7 +58,7 @@ public class CustomerService {
     @CacheEvict(value = RedisConfig.CACHE_CUSTOMER_BY_ID, key = "#id")
     public CustomerResponse update(UUID id, CustomerRequest request) {
         log.info("Updating customer id={}", id);
-        Customer customer = getOrThrow(id);
+        Customer customer = getClient(id);
         String normalizedCpf = request.cpf().replaceAll("[^0-9]", "");
         if (customerRepository.existsByCpfAndIdNot(normalizedCpf, id)) {
             throw new ConflictException("CPF already in use by another customer: " + normalizedCpf);
@@ -65,14 +72,14 @@ public class CustomerService {
     @CacheEvict(value = RedisConfig.CACHE_CUSTOMER_BY_ID, key = "#id")
     public void delete(UUID id) {
         log.info("Deleting customer id={}", id);
-        Customer customer = getOrThrow(id);
-        if (paymentRepository.existsByCustomerId(id)) {
+        Customer customer = getClient(id);
+        if (paymentService.existsByCustomerId(id)) {
             throw new ConflictException("Cannot delete customer with existing payments: " + id);
         }
         customerRepository.delete(customer);
     }
 
-    private Customer getOrThrow(UUID id) {
+    private Customer getClient(UUID id) {
         return customerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found: " + id));
     }

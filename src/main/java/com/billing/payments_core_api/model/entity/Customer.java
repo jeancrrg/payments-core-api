@@ -3,7 +3,6 @@ package com.billing.payments_core_api.model.entity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
-import jakarta.persistence.Index;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -14,21 +13,16 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.io.Serializable;
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
-@Entity
-@Table(
-        name = "customers",
-        indexes = {
-                @Index(name = "idx_customers_cpf", columnList = "cpf", unique = true)
-        }
-)
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Entity
+@Table(name = "customers")
 public class Customer implements Serializable {
 
     @Id
@@ -42,21 +36,26 @@ public class Customer implements Serializable {
     private String cpf;
 
     @Column(name = "created_at", nullable = false, updatable = false)
-    private OffsetDateTime createdAt;
+    private LocalDateTime createdAt;
 
     @Column(name = "updated_at", nullable = false)
-    private OffsetDateTime updatedAt;
+    private LocalDateTime updatedAt;
 
     @PrePersist
     void onCreate() {
-        if (id == null) id = UUID.randomUUID();
-        OffsetDateTime now = OffsetDateTime.now();
-        if (createdAt == null) createdAt = now;
+        if (id == null) {
+            id = UUID.randomUUID();
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = now;
+        }
         updatedAt = now;
     }
 
     @PreUpdate
     void onUpdate() {
-        updatedAt = OffsetDateTime.now();
+        updatedAt = LocalDateTime.now();
     }
+
 }

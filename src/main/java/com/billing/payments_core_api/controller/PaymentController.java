@@ -4,6 +4,7 @@ import com.billing.payments_core_api.controller.docs.PaymentApi;
 import com.billing.payments_core_api.model.dto.request.PaymentRequest;
 import com.billing.payments_core_api.model.dto.response.PageResponse;
 import com.billing.payments_core_api.model.dto.response.PaymentResponse;
+import com.billing.payments_core_api.model.dto.response.PaymentStatusResponse;
 import com.billing.payments_core_api.model.enums.PaymentStatus;
 import com.billing.payments_core_api.service.PaymentService;
 import jakarta.validation.Valid;
@@ -29,6 +30,26 @@ public class PaymentController implements PaymentApi {
 
     private final PaymentService paymentService;
 
+    @GetMapping("/{id}")
+    public ResponseEntity<PaymentResponse> findById(@PathVariable UUID id) {
+        return ResponseEntity.ok(paymentService.findById(id));
+    }
+
+    @GetMapping("/{id}/status")
+    public ResponseEntity<PaymentStatusResponse> status(@PathVariable UUID id) {
+        return ResponseEntity.ok(paymentService.getStatus(id));
+    }
+
+    @GetMapping("/customer/{customerId}")
+    public ResponseEntity<PageResponse<PaymentResponse>> findByCustomer(@PathVariable UUID customerId, Pageable pageable) {
+        return ResponseEntity.ok(paymentService.findByCustomer(customerId, pageable));
+    }
+
+    @PostMapping("/{id}/sync")
+    public ResponseEntity<PaymentResponse> sync(@PathVariable UUID id) {
+        return ResponseEntity.ok(paymentService.syncWithStripe(id));
+    }
+
     @PostMapping
     public ResponseEntity<PaymentResponse> create(@Valid @RequestBody PaymentRequest request,
                                                   UriComponentsBuilder uriBuilder) {
@@ -37,24 +58,4 @@ public class PaymentController implements PaymentApi {
         return ResponseEntity.created(location).body(response);
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<PaymentResponse> findById(@PathVariable UUID id) {
-        return ResponseEntity.ok(paymentService.findById(id));
-    }
-
-    @GetMapping("/{id}/status")
-    public ResponseEntity<Map<String, Object>> status(@PathVariable UUID id) {
-        PaymentStatus status = paymentService.getStatus(id);
-        return ResponseEntity.ok(Map.of("id", id, "status", status));
-    }
-
-    @PostMapping("/{id}/sync")
-    public ResponseEntity<PaymentResponse> sync(@PathVariable UUID id) {
-        return ResponseEntity.ok(paymentService.syncWithStripe(id));
-    }
-
-    @GetMapping("/customer/{customerId}")
-    public ResponseEntity<PageResponse<PaymentResponse>> findByCustomer(@PathVariable UUID customerId, Pageable pageable) {
-        return ResponseEntity.ok(paymentService.findByCustomer(customerId, pageable));
-    }
 }

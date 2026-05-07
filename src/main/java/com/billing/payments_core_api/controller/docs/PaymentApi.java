@@ -3,6 +3,7 @@ package com.billing.payments_core_api.controller.docs;
 import com.billing.payments_core_api.model.dto.request.PaymentRequest;
 import com.billing.payments_core_api.model.dto.response.PageResponse;
 import com.billing.payments_core_api.model.dto.response.PaymentResponse;
+import com.billing.payments_core_api.model.dto.response.PaymentStatusResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -23,6 +24,25 @@ import java.util.UUID;
 @Tag(name = "Payments", description = "Operations to create and consult payments")
 public interface PaymentApi {
 
+    @Operation(summary = "Find payment by id", description = "Returns the payment. Result is served from Redis cache when available.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Payment found"),
+            @ApiResponse(responseCode = "404", description = "Payment not found")
+    })
+    ResponseEntity<PaymentResponse> findById(@Parameter(description = "Payment id") @PathVariable UUID id);
+
+    @Operation(summary = "Get current payment status", description = "Returns only the current PaymentStatus.")
+    ResponseEntity<PaymentStatusResponse> status(@PathVariable UUID id);
+
+    @Operation(summary = "List payments by customer", description = "Paginated list of customer payments. Cached in Redis.")
+    @ApiResponse(responseCode = "200", description = "Page of payments")
+    ResponseEntity<PageResponse<PaymentResponse>> findByCustomer(
+            @Parameter(description = "Customer id") @PathVariable UUID customerId,
+            @Parameter(hidden = true) Pageable pageable);
+
+    @Operation(summary = "Re-sync payment with Stripe", description = "Calls Stripe to refresh the payment status (with retry). Invalidates the cache.")
+    ResponseEntity<PaymentResponse> sync(@PathVariable UUID id);
+
     @Operation(summary = "Create a new payment", description = "Creates a payment via Stripe (with Resilience4j retry). Returns 201 with the persisted payment.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Payment created",
@@ -34,23 +54,4 @@ public interface PaymentApi {
     ResponseEntity<PaymentResponse> create(@Valid @RequestBody PaymentRequest request,
                                            UriComponentsBuilder uriBuilder);
 
-    @Operation(summary = "Find payment by id", description = "Returns the payment. Result is served from Redis cache when available.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Payment found"),
-            @ApiResponse(responseCode = "404", description = "Payment not found")
-    })
-    ResponseEntity<PaymentResponse> findById(
-            @Parameter(description = "Payment id") @PathVariable UUID id);
-
-    @Operation(summary = "Get current payment status", description = "Returns only the current PaymentStatus.")
-    ResponseEntity<Map<String, Object>> status(@PathVariable UUID id);
-
-    @Operation(summary = "Re-sync payment with Stripe", description = "Calls Stripe to refresh the payment status (with retry). Invalidates the cache.")
-    ResponseEntity<PaymentResponse> sync(@PathVariable UUID id);
-
-    @Operation(summary = "List payments by customer", description = "Paginated list of customer payments. Cached in Redis.")
-    @ApiResponse(responseCode = "200", description = "Page of payments")
-    ResponseEntity<PageResponse<PaymentResponse>> findByCustomer(
-            @Parameter(description = "Customer id") @PathVariable UUID customerId,
-            @Parameter(hidden = true) Pageable pageable);
 }

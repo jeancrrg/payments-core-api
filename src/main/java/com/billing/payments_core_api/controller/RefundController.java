@@ -26,24 +26,21 @@ public class RefundController implements RefundApi {
 
     private final RefundService refundService;
 
-    @PostMapping
-    @Override
-    public ResponseEntity<RefundResponse> create(@Valid @RequestBody RefundRequest request,
-                                                 UriComponentsBuilder uriBuilder) {
-        RefundResponse response = refundService.requestRefund(request);
-        URI location = uriBuilder.path("/v1/refunds/{id}").buildAndExpand(response.id()).toUri();
-        return ResponseEntity.created(location).body(response);
-    }
-
     @GetMapping("/{id}")
-    @Override
     public ResponseEntity<RefundResponse> findById(@PathVariable UUID id) {
         return ResponseEntity.ok(refundService.findById(id));
     }
 
     @GetMapping("/payment/{paymentId}")
-    @Override
     public ResponseEntity<List<RefundResponse>> findByPayment(@PathVariable UUID paymentId) {
         return ResponseEntity.ok(refundService.findByPaymentId(paymentId));
     }
+
+    @PostMapping
+    public ResponseEntity<RefundResponse> create(@Valid @RequestBody RefundRequest request, UriComponentsBuilder uriBuilder) {
+        RefundResponse response = refundService.requestRefund(request);
+        URI location = uriBuilder.path("/v1/refunds/{id}").buildAndExpand(response.id()).toUri();
+        return ResponseEntity.created(location).body(response);
+    }
+
 }

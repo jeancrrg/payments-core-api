@@ -4,7 +4,7 @@ import com.billing.payments_core_api.config.RedisConfig;
 import com.billing.payments_core_api.exception.BusinessException;
 import com.billing.payments_core_api.exception.ResourceNotFoundException;
 import com.billing.payments_core_api.integration.StripeGatewayClient;
-import com.billing.payments_core_api.mapper.PaymentMapper;
+import com.billing.payments_core_api.mapper.RefundMapper;
 import com.billing.payments_core_api.model.dto.request.RefundRequest;
 import com.billing.payments_core_api.model.dto.response.RefundResponse;
 import com.billing.payments_core_api.model.entity.Payment;
@@ -34,7 +34,21 @@ public class RefundService {
     private final PaymentService paymentService;
     private final StripeGatewayClient stripeClient;
     private final PaymentNotificationService notificationService;
-    private final PaymentMapper paymentMapper;
+    private final RefundMapper refundMapper;
+
+    @Transactional(readOnly = true)
+    @Cacheable(value = RedisConfig.CACHE_REFUND_BY_ID, key = "#id")
+    public RefundResponse findById(UUID id) {
+        log.debug("Cache MISS for refund id={} - querying database", id);
+        Refund refund = refundRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Refund not found: " + id));
+        return refundMapper.toRefundResponse(refund);
+    }
+
+    @Transactional(readOnly = true)
+    public List<RefundResponse> findByPaymentId(UUID paymentId) {
+        return refundMapper.toRefundResponseList(refundRepository.findByPaymentId(paymentId));
+    }
 
     @Transactional
     @Caching(evict = {
@@ -47,24 +61,10 @@ public class RefundService {
         BigDecimal alreadyRefunded = getAlreadyRefunded(payment.getId());
         BigDecimal refundAmount = resolveRefundAmount(request, payment, alreadyRefunded);
         validateRefundAmounts(refundAmount, alreadyRefunded, payment.getAmount());
-        Refund refund = buildAndSaveRefund(payment, refundAmount, request.reason());
+        Refund refund = buildAndSaveRefund(payment.getId(), refundAmount, request.reason());
         refund = executeStripeRefund(refund, payment, refundAmount, alreadyRefunded);
         notificationService.notifyRefundProcessed(refund);
-        return paymentMapper.toRefundResponse(refund);
-    }
-
-    @Transactional(readOnly = true)
-    @Cacheable(value = RedisConfig.CACHE_REFUND_BY_ID, key = "#id")
-    public RefundResponse findById(UUID id) {
-        log.debug("Cache MISS for refund id={} - querying database", id);
-        Refund refund = refundRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Refund not found: " + id));
-        return paymentMapper.toRefundResponse(refund);
-    }
-
-    @Transactional(readOnly = true)
-    public List<RefundResponse> findByPaymentId(UUID paymentId) {
-        return paymentMapper.toRefundResponseList(refundRepository.findByPaymentId(paymentId));
+        return refundMapper.toRefundResponse(refund);
     }
 
     private void validateRefundEligible(Payment payment) {
@@ -104,9 +104,9 @@ public class RefundService {
         }
     }
 
-    private Refund buildAndSaveRefund(Payment payment, BigDecimal amount, String reason) {
+    private Refund buildAndSaveRefund(UUID paymentId, BigDecimal amount, String reason) {
         Refund refund = Refund.builder()
-                .payment(payment)
+                .paymentId(paymentId)
                 .amount(amount)
                 .reason(reason)
                 .status(RefundStatus.PENDING)

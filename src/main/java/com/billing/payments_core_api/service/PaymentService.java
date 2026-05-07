@@ -7,6 +7,7 @@ import com.billing.payments_core_api.mapper.PaymentMapper;
 import com.billing.payments_core_api.model.dto.request.PaymentRequest;
 import com.billing.payments_core_api.model.dto.response.PageResponse;
 import com.billing.payments_core_api.model.dto.response.PaymentResponse;
+import com.billing.payments_core_api.model.dto.response.PaymentStatusResponse;
 import com.billing.payments_core_api.model.entity.Payment;
 import com.billing.payments_core_api.model.enums.PaymentStatus;
 import com.billing.payments_core_api.repository.CustomerRepository;
@@ -35,23 +36,6 @@ public class PaymentService {
     private final PaymentNotificationService notificationService;
     private final PaymentMapper paymentMapper;
 
-    @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = RedisConfig.CACHE_CUSTOMER_PAYMENTS, key = "#request.customerId()")
-    })
-    public PaymentResponse createPayment(PaymentRequest request) {
-        log.info("Creating payment for customer={}, amount={} {}",
-                request.customerId(), request.amount(), request.currency());
-        if (!customerRepository.existsById(request.customerId())) {
-            throw new ResourceNotFoundException("Customer not found: " + request.customerId());
-        }
-        Payment payment = buildAndSaveInitialPayment(request);
-        payment = executeStripeProcessing(payment, request);
-        notificationService.notifyPaymentProcessed(payment);
-        notificationService.auditPaymentEvent(payment, "PAYMENT_CREATED");
-        return paymentMapper.toResponse(payment);
-    }
-
     @Transactional(readOnly = true)
     @Cacheable(value = RedisConfig.CACHE_PAYMENT_BY_ID, key = "#id")
     public PaymentResponse findById(UUID id) {
@@ -62,15 +46,9 @@ public class PaymentService {
     }
 
     @Transactional(readOnly = true)
-    public PaymentStatus getStatus(UUID id) {
+    public PaymentStatusResponse getStatus(UUID id) {
         return paymentRepository.findById(id)
-                .map(Payment::getStatus)
-                .orElseThrow(() -> new ResourceNotFoundException("Payment not found: " + id));
-    }
-
-    @Transactional(readOnly = true)
-    public Payment findEntityById(UUID id) {
-        return paymentRepository.findById(id)
+                .map(paymentMapper::toStatusResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment not found: " + id));
     }
 
@@ -83,8 +61,7 @@ public class PaymentService {
         log.debug("Cache MISS for customer payments customerId={} page={} - querying database",
                 customerId, pageable.getPageNumber());
         return PageResponse.from(
-                paymentRepository.findByCustomerId(customerId, pageable)
-                        .map(paymentMapper::toResponse)
+                paymentRepository.findByCustomerId(customerId, pageable).map(paymentMapper::toResponse)
         );
     }
 
@@ -109,7 +86,7 @@ public class PaymentService {
         return paymentMapper.toResponse(payment);
     }
 
-    public static PaymentStatus mapStripeStatus(String stripeStatus) {
+    public PaymentStatus mapStripeStatus(String stripeStatus) {
         if (stripeStatus == null) {
             return PaymentStatus.PENDING;
         }
@@ -121,6 +98,23 @@ public class PaymentService {
             case "canceled" -> PaymentStatus.CANCELLED;
             default -> PaymentStatus.FAILED;
         };
+    }
+
+    @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = RedisConfig.CACHE_CUSTOMER_PAYMENTS, key = "#request.customerId()")
+    })
+    public PaymentResponse createPayment(PaymentRequest request) {
+        log.info("Creating payment for customer={}, amount={} {}",
+                request.customerId(), request.amount(), request.currency());
+        if (!customerRepository.existsById(request.customerId())) {
+            throw new ResourceNotFoundException("Customer not found: " + request.customerId());
+        }
+        Payment payment = buildAndSaveInitialPayment(request);
+        payment = executeStripeProcessing(payment, request);
+        notificationService.notifyPaymentProcessed(payment);
+        notificationService.auditPaymentEvent(payment, "PAYMENT_CREATED");
+        return paymentMapper.toResponse(payment);
     }
 
     private Payment buildAndSaveInitialPayment(PaymentRequest request) {
@@ -166,6 +160,16 @@ public class PaymentService {
             return null;
         }
         return text.length() <= 512 ? text : text.substring(0, 512);
+    }
+
+    @Transactional(readOnly = true)
+    public Payment findEntityById(UUID id) {
+        return paymentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found: " + id));
+    }
+
+    public boolean existsByCustomerId(UUID id) {
+        return paymentRepository.existsByCustomerId(id);
     }
 
 }

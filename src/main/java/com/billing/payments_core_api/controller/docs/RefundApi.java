@@ -19,6 +19,12 @@ import java.util.UUID;
 @Tag(name = "Refunds", description = "Operations to request and consult refunds via Stripe")
 public interface RefundApi {
 
+    @Operation(summary = "Find refund by id", description = "Returns a single refund. Cached in Redis.")
+    ResponseEntity<RefundResponse> findById(@Parameter(description = "Refund id") @PathVariable UUID id);
+
+    @Operation(summary = "List refunds for a payment")
+    ResponseEntity<List<RefundResponse>> findByPayment(@PathVariable UUID paymentId);
+
     @Operation(summary = "Request a refund", description = "Issues a refund through Stripe (with retry). If amount is omitted, the remaining refundable amount is refunded.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Refund created"),
@@ -27,13 +33,6 @@ public interface RefundApi {
             @ApiResponse(responseCode = "502", description = "Stripe gateway error"),
             @ApiResponse(responseCode = "503", description = "Stripe temporarily unavailable (circuit breaker open)")
     })
-    ResponseEntity<RefundResponse> create(@Valid @RequestBody RefundRequest request,
-                                          UriComponentsBuilder uriBuilder);
+    ResponseEntity<RefundResponse> create(@Valid @RequestBody RefundRequest request, UriComponentsBuilder uriBuilder);
 
-    @Operation(summary = "Find refund by id", description = "Returns a single refund. Cached in Redis.")
-    ResponseEntity<RefundResponse> findById(
-            @Parameter(description = "Refund id") @PathVariable UUID id);
-
-    @Operation(summary = "List refunds for a payment")
-    ResponseEntity<List<RefundResponse>> findByPayment(@PathVariable UUID paymentId);
 }
