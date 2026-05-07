@@ -43,59 +43,12 @@ public class RefundService {
     })
     public RefundResponse requestRefund(RefundRequest request) {
         Payment payment = paymentService.findEntityById(request.paymentId());
-
         validateRefundEligible(payment);
-
-        BigDecimal alreadyRefunded = refundRepository.sumRefundedAmountForPayment(payment.getId(), RefundStatus.FAILED);
-        if (alreadyRefunded == null) {
-            alreadyRefunded = BigDecimal.ZERO;
-        }
-        BigDecimal refundAmount = request.amount() != null ? request.amount() : payment.getAmount().subtract(alreadyRefunded);
-
-        if (refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new InvalidRefundException("Refund amount must be greater than zero");
-        }
-        BigDecimal totalAfter = alreadyRefunded.add(refundAmount);
-        if (totalAfter.compareTo(payment.getAmount()) > 0) {
-            throw new InvalidRefundException(
-                    "Refund amount " + refundAmount + " exceeds remaining refundable amount " +
-                            payment.getAmount().subtract(alreadyRefunded));
-        }
-
-        Refund refund = Refund.builder()
-                .payment(payment)
-                .amount(refundAmount)
-                .reason(request.reason())
-                .status(RefundStatus.PENDING)
-                .build();
-        refund = refundRepository.save(refund);
-
-        try {
-            com.stripe.model.Refund stripeRefund = stripeClient.createRefund(
-                    payment.getStripePaymentIntentId(),
-                    refundAmount,
-                    payment.getCurrency(),
-                    request.reason()
-            );
-
-            refund.setStripeRefundId(stripeRefund.getId());
-            refund.setStatus(mapStripeRefundStatus(stripeRefund.getStatus()));
-            refund = refundRepository.save(refund);
-
-            if (totalAfter.compareTo(payment.getAmount()) >= 0) {
-                payment.setStatus(PaymentStatus.REFUNDED);
-            } else {
-                payment.setStatus(PaymentStatus.PARTIALLY_REFUNDED);
-            }
-        } catch (RuntimeException ex) {
-            log.error("Refund {} failed: {}", refund.getId(), ex.getMessage());
-            refund.setStatus(RefundStatus.FAILED);
-            refund.setFailureReason(truncate(ex.getMessage()));
-            refundRepository.save(refund);
-            notificationService.notifyRefundProcessed(refund);
-            throw ex;
-        }
-
+        BigDecimal alreadyRefunded = getAlreadyRefunded(payment.getId());
+        BigDecimal refundAmount = resolveRefundAmount(request, payment, alreadyRefunded);
+        validateRefundAmounts(refundAmount, alreadyRefunded, payment.getAmount());
+        Refund refund = buildAndSaveRefund(payment, refundAmount, request.reason());
+        refund = executeStripeRefund(refund, payment, refundAmount, alreadyRefunded);
         notificationService.notifyRefundProcessed(refund);
         return paymentMapper.toRefundResponse(refund);
     }
@@ -119,12 +72,78 @@ public class RefundService {
             throw new InvalidRefundException("Payment has no associated Stripe transaction and cannot be refunded");
         }
         PaymentStatus s = payment.getStatus();
-        if (s == PaymentStatus.PENDING || s == PaymentStatus.PROCESSING || s == PaymentStatus.FAILED || s == PaymentStatus.CANCELLED) {
+        if (s == PaymentStatus.PENDING || s == PaymentStatus.PROCESSING
+                || s == PaymentStatus.FAILED || s == PaymentStatus.CANCELLED) {
             throw new InvalidRefundException("Payment in status " + s + " cannot be refunded");
         }
         if (s == PaymentStatus.REFUNDED) {
             throw new InvalidRefundException("Payment is already fully refunded");
         }
+    }
+
+    private BigDecimal getAlreadyRefunded(UUID paymentId) {
+        BigDecimal sum = refundRepository.sumRefundedAmountForPayment(paymentId, RefundStatus.FAILED);
+        return sum != null ? sum : BigDecimal.ZERO;
+    }
+
+    private BigDecimal resolveRefundAmount(RefundRequest request, Payment payment, BigDecimal alreadyRefunded) {
+        return request.amount() != null
+                ? request.amount()
+                : payment.getAmount().subtract(alreadyRefunded);
+    }
+
+    private void validateRefundAmounts(BigDecimal refundAmount, BigDecimal alreadyRefunded, BigDecimal paymentAmount) {
+        if (refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new InvalidRefundException("Refund amount must be greater than zero");
+        }
+        BigDecimal totalAfter = alreadyRefunded.add(refundAmount);
+        if (totalAfter.compareTo(paymentAmount) > 0) {
+            throw new InvalidRefundException(
+                    "Refund amount " + refundAmount + " exceeds remaining refundable amount " +
+                            paymentAmount.subtract(alreadyRefunded));
+        }
+    }
+
+    private Refund buildAndSaveRefund(Payment payment, BigDecimal amount, String reason) {
+        Refund refund = Refund.builder()
+                .payment(payment)
+                .amount(amount)
+                .reason(reason)
+                .status(RefundStatus.PENDING)
+                .build();
+        return refundRepository.save(refund);
+    }
+
+    private Refund executeStripeRefund(Refund refund, Payment payment, BigDecimal refundAmount, BigDecimal alreadyRefunded) {
+        try {
+            com.stripe.model.Refund stripeRefund = stripeClient.createRefund(
+                    payment.getStripePaymentIntentId(), refundAmount,
+                    payment.getCurrency(), refund.getReason());
+            refund.setStripeRefundId(stripeRefund.getId());
+            refund.setStatus(mapStripeRefundStatus(stripeRefund.getStatus()));
+            refund = refundRepository.save(refund);
+            updatePaymentRefundStatus(payment, alreadyRefunded.add(refundAmount));
+            return refund;
+        } catch (RuntimeException ex) {
+            return handleRefundError(refund, ex);
+        }
+    }
+
+    private void updatePaymentRefundStatus(Payment payment, BigDecimal totalRefunded) {
+        if (totalRefunded.compareTo(payment.getAmount()) >= 0) {
+            payment.setStatus(PaymentStatus.REFUNDED);
+        } else {
+            payment.setStatus(PaymentStatus.PARTIALLY_REFUNDED);
+        }
+    }
+
+    private Refund handleRefundError(Refund refund, RuntimeException ex) {
+        log.error("Refund {} failed: {}", refund.getId(), ex.getMessage());
+        refund.setStatus(RefundStatus.FAILED);
+        refund.setFailureReason(truncate(ex.getMessage()));
+        refundRepository.save(refund);
+        notificationService.notifyRefundProcessed(refund);
+        throw ex;
     }
 
     private RefundStatus mapStripeRefundStatus(String stripeStatus) {

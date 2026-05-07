@@ -4,7 +4,6 @@ import com.billing.payments_core_api.exception.StripeIntegrationException;
 import com.stripe.exception.StripeException;
 import com.stripe.model.PaymentIntent;
 import com.stripe.model.Refund;
-import com.stripe.param.PaymentIntentConfirmParams;
 import com.stripe.param.PaymentIntentCreateParams;
 import com.stripe.param.RefundCreateParams;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
@@ -23,33 +22,10 @@ public class StripeGatewayClient {
 
     @Retry(name = RESILIENCE_INSTANCE)
     @CircuitBreaker(name = RESILIENCE_INSTANCE)
-    public PaymentIntent createPaymentIntent(BigDecimal amount,
-                                             String currency,
-                                             String customerId,
-                                             String paymentMethodId,
-                                             String description) {
+    public PaymentIntent createPaymentIntent(BigDecimal amount, String currency, String customerId, String paymentMethodId, String description) {
         try {
-            PaymentIntentCreateParams.Builder builder =
-                    PaymentIntentCreateParams.builder()
-                            .setAmount(toMinorUnits(amount, currency))
-                            .setCurrency(currency.toLowerCase())
-                            .setDescription(description)
-                            .setAutomaticPaymentMethods(
-                                    PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
-                                            .setEnabled(true)
-                                            .setAllowRedirects(
-                                                    PaymentIntentCreateParams.AutomaticPaymentMethods.AllowRedirects.NEVER
-                                            )
-                                            .build()
-                            )
-                            .putMetadata("internal_customer_id", customerId);
-
-            if (paymentMethodId != null && !paymentMethodId.isBlank()) {
-                builder.setPaymentMethod(paymentMethodId).setConfirm(true);
-            }
-            PaymentIntentCreateParams params = builder.build();
-            log.info("Creating Stripe PaymentIntent | customer={} amount={} {}",
-                    customerId, amount, currency);
+            PaymentIntentCreateParams params = buildPaymentIntentParams(amount, currency, customerId, paymentMethodId, description);
+            log.info("Creating Stripe PaymentIntent | customer={} amount={} {}", customerId, amount, currency);
             return PaymentIntent.create(params);
         } catch (StripeException e) {
             log.error("Stripe PaymentIntent creation failed", e);
@@ -69,45 +45,46 @@ public class StripeGatewayClient {
 
     @Retry(name = RESILIENCE_INSTANCE)
     @CircuitBreaker(name = RESILIENCE_INSTANCE)
-    public PaymentIntent confirmPaymentIntent(String paymentIntentId, String paymentMethodId) {
+    public Refund createRefund(String paymentIntentId, BigDecimal amount, String currency, String reason) {
         try {
-            PaymentIntent intent = PaymentIntent.retrieve(paymentIntentId);
-            PaymentIntentConfirmParams params = PaymentIntentConfirmParams.builder()
-                            .setPaymentMethod(paymentMethodId)
-                            .build();
-            return intent.confirm(params);
-        } catch (StripeException e) {
-            throw new StripeIntegrationException("Failed to confirm PaymentIntent " + paymentIntentId, e);
-        }
-    }
-
-    @Retry(name = RESILIENCE_INSTANCE)
-    @CircuitBreaker(name = RESILIENCE_INSTANCE)
-    public Refund createRefund(String paymentIntentId,
-                               BigDecimal amount,
-                               String currency,
-                               String reason) {
-        try {
-            RefundCreateParams.Builder builder =
-                    RefundCreateParams.builder()
-                            .setPaymentIntent(paymentIntentId);
-
-            if (amount != null) {
-                builder.setAmount(toMinorUnits(amount, currency));
-            }
-
-            if (reason != null && !reason.isBlank()) {
-                builder.setReason(mapReason(reason));
-            }
-
-            log.info("Creating Stripe refund | paymentIntent={} amount={}",
-                    paymentIntentId, amount);
-
-            return Refund.create(builder.build());
-
+            RefundCreateParams params = buildRefundParams(paymentIntentId, amount, currency, reason);
+            log.info("Creating Stripe refund | paymentIntent={} amount={}", paymentIntentId, amount);
+            return Refund.create(params);
         } catch (StripeException e) {
             throw new StripeIntegrationException("Failed to create refund for " + paymentIntentId, e);
         }
+    }
+
+    private PaymentIntentCreateParams buildPaymentIntentParams(BigDecimal amount, String currency, String customerId, String paymentMethodId, String description) {
+        PaymentIntentCreateParams.Builder builder = PaymentIntentCreateParams.builder()
+                .setAmount(toMinorUnits(amount, currency))
+                .setCurrency(currency.toLowerCase())
+                .setDescription(description)
+                .setAutomaticPaymentMethods(buildAutoPaymentMethods())
+                .putMetadata("internal_customer_id", customerId);
+        if (paymentMethodId != null && !paymentMethodId.isBlank()) {
+            builder.setPaymentMethod(paymentMethodId).setConfirm(true);
+        }
+        return builder.build();
+    }
+
+    private PaymentIntentCreateParams.AutomaticPaymentMethods buildAutoPaymentMethods() {
+        return PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
+                .setEnabled(true)
+                .setAllowRedirects(PaymentIntentCreateParams.AutomaticPaymentMethods.AllowRedirects.NEVER)
+                .build();
+    }
+
+    private RefundCreateParams buildRefundParams(String paymentIntentId, BigDecimal amount, String currency, String reason) {
+        RefundCreateParams.Builder builder = RefundCreateParams.builder()
+                .setPaymentIntent(paymentIntentId);
+        if (amount != null) {
+            builder.setAmount(toMinorUnits(amount, currency));
+        }
+        if (reason != null && !reason.isBlank()) {
+            builder.setReason(mapReason(reason));
+        }
+        return builder.build();
     }
 
     private long toMinorUnits(BigDecimal amount, String currency) {
@@ -116,7 +93,6 @@ public class StripeGatewayClient {
                     .setScale(0, RoundingMode.HALF_UP)
                     .longValueExact();
         }
-
         return amount
                 .movePointRight(2)
                 .setScale(0, RoundingMode.HALF_UP)

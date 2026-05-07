@@ -40,46 +40,10 @@ public class PaymentService {
     public PaymentResponse createPayment(PaymentRequest request) {
         log.info("Creating payment for customer={}, amount={} {}",
                 request.customerId(), request.amount(), request.currency());
-
-        Payment payment = Payment.builder()
-                .customerId(request.customerId())
-                .amount(request.amount())
-                .currency(request.currency().toUpperCase())
-                .description(request.description())
-                .status(PaymentStatus.PENDING)
-                .build();
-        payment = paymentRepository.save(payment);
-
-        try {
-            payment.setStatus(PaymentStatus.PROCESSING);
-            paymentRepository.save(payment);
-
-            PaymentIntent intent = stripeClient.createPaymentIntent(
-                    request.amount(),
-                    request.currency(),
-                    request.customerId(),
-                    request.paymentMethodId(),
-                    request.description()
-            );
-
-            payment.setStripePaymentIntentId(intent.getId());
-            payment.setStatus(mapStripeStatus(intent.getStatus()));
-            payment = paymentRepository.save(payment);
-
-            log.info("Payment {} processed, stripeIntent={}, status={}",
-                    payment.getId(), intent.getId(), payment.getStatus());
-        } catch (RuntimeException ex) {
-            log.error("Payment {} failed during Stripe processing: {}", payment.getId(), ex.getMessage());
-            payment.setStatus(PaymentStatus.FAILED);
-            paymentRepository.save(payment);
-            payment.setFailureReason(truncate(ex.getMessage()));
-            notificationService.notifyPaymentProcessed(payment);
-            throw ex;
-        }
-
+        Payment payment = buildAndSaveInitialPayment(request);
+        payment = executeStripeProcessing(payment, request);
         notificationService.notifyPaymentProcessed(payment);
         notificationService.auditPaymentEvent(payment, "PAYMENT_CREATED");
-
         return paymentMapper.toResponse(payment);
     }
 
@@ -127,11 +91,9 @@ public class PaymentService {
     public PaymentResponse syncWithStripe(UUID id) {
         Payment payment = paymentRepository.findById(id)
                 .orElseThrow(() -> new PaymentNotFoundException("Payment not found: " + id));
-
         if (payment.getStripePaymentIntentId() == null) {
             return paymentMapper.toResponse(payment);
         }
-
         PaymentIntent intent = stripeClient.retrievePaymentIntent(payment.getStripePaymentIntentId());
         PaymentStatus newStatus = mapStripeStatus(intent.getStatus());
         if (newStatus != payment.getStatus()) {
@@ -154,6 +116,44 @@ public class PaymentService {
             case "canceled" -> PaymentStatus.CANCELLED;
             default -> PaymentStatus.FAILED;
         };
+    }
+
+    private Payment buildAndSaveInitialPayment(PaymentRequest request) {
+        Payment payment = Payment.builder()
+                .customerId(request.customerId())
+                .amount(request.amount())
+                .currency(request.currency().toUpperCase())
+                .description(request.description())
+                .status(PaymentStatus.PENDING)
+                .build();
+        return paymentRepository.save(payment);
+    }
+
+    private Payment executeStripeProcessing(Payment payment, PaymentRequest request) {
+        payment.setStatus(PaymentStatus.PROCESSING);
+        paymentRepository.save(payment);
+        try {
+            PaymentIntent intent = stripeClient.createPaymentIntent(
+                    request.amount(), request.currency(),
+                    request.customerId(), request.paymentMethodId(), request.description());
+            payment.setStripePaymentIntentId(intent.getId());
+            payment.setStatus(mapStripeStatus(intent.getStatus()));
+            payment = paymentRepository.save(payment);
+            log.info("Payment {} processed, stripeIntent={}, status={}",
+                    payment.getId(), intent.getId(), payment.getStatus());
+            return payment;
+        } catch (RuntimeException ex) {
+            return handleStripeError(payment, ex);
+        }
+    }
+
+    private Payment handleStripeError(Payment payment, RuntimeException ex) {
+        log.error("Payment {} failed during Stripe processing: {}", payment.getId(), ex.getMessage());
+        payment.setStatus(PaymentStatus.FAILED);
+        paymentRepository.save(payment);
+        payment.setFailureReason(truncate(ex.getMessage()));
+        notificationService.notifyPaymentProcessed(payment);
+        throw ex;
     }
 
     private String truncate(String text) {

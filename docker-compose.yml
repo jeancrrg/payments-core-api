@@ -5,8 +5,8 @@ services:
     container_name: payments-postgres
     environment:
       POSTGRES_DB: payments
-      POSTGRES_USER: ${DB_USERNAME:-payments}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-payments}
+      POSTGRES_USER: ${DB_USERNAME:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-admin}
     ports:
       - "5432:5432"
     volumes:
