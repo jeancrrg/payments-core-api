@@ -1,6 +1,6 @@
 package com.billing.payments_core_api.repository;
 
-import com.billing.payments_core_api.model.entity.Refund;
+import com.billing.payments_core_api.model.entity.RefundTransaction;
 import com.billing.payments_core_api.model.enums.RefundStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -12,15 +12,15 @@ import java.util.List;
 import java.util.UUID;
 
 @Repository
-public interface RefundRepository extends JpaRepository<Refund, UUID> {
+public interface RefundTransactionRepository extends JpaRepository<RefundTransaction, UUID> {
 
-    List<Refund> findByPaymentId(UUID paymentId);
+    List<RefundTransaction> findByPaymentId(UUID paymentId);
 
     @Query("""
         SELECT COALESCE(SUM(rfd.amount), 0)
-          FROM Refund rfd
+          FROM RefundTransaction rfd
          WHERE 1=1
-           AND rfd.payment.id = :paymentId
+           AND rfd.paymentId = :paymentId
            AND rfd.status <> :status
     """)
     BigDecimal sumRefundedAmountForPayment(@Param("paymentId") UUID paymentId, @Param("status") RefundStatus status);

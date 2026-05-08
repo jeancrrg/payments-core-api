@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.util.UUID;
 
-public record RefundRequest(
+public record RefundTransactionRequest(
 
         @NotNull(message = "paymentId is required")
         UUID paymentId,

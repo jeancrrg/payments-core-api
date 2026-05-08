@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-public record RefundResponse(
+public record RefundTransactionResponse(
         UUID id,
         UUID paymentId,
         String stripeRefundId,

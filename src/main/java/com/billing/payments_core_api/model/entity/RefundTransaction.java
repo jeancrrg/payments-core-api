@@ -26,8 +26,8 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(name = "refunds")
-public class Refund implements Serializable {
+@Table(name = "refund_transactions")
+public class RefundTransaction implements Serializable {
 
     @Id
     @Column(name = "id", nullable = false, updatable = false)

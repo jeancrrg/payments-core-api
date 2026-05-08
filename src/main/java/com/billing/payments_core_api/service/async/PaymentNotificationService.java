@@ -1,7 +1,7 @@
 package com.billing.payments_core_api.service.async;
 
 import com.billing.payments_core_api.model.entity.Payment;
-import com.billing.payments_core_api.model.entity.Refund;
+import com.billing.payments_core_api.model.entity.RefundTransaction;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -19,11 +19,11 @@ public class PaymentNotificationService {
     }
 
     @Async("paymentExecutor")
-    public void notifyRefundProcessed(Refund refund) {
-        log.info("[ASYNC thread={}] Notifying refund processed: id={}, paymentId={}, status={}",
-                Thread.currentThread().getName(), refund.getId(), refund.getPaymentId(), refund.getStatus());
+    public void notifyRefundProcessed(RefundTransaction refundTransaction) {
+        log.info("[ASYNC thread={}] Notifying refund transaction processed: id={}, paymentId={}, status={}",
+                Thread.currentThread().getName(), refundTransaction.getId(), refundTransaction.getPaymentId(), refundTransaction.getStatus());
         simulateExternalCall();
-        log.info("[ASYNC] Notification dispatched for refund {}", refund.getId());
+        log.info("[ASYNC] Notification dispatched for refund transaction {}", refundTransaction.getId());
     }
 
     @Async("paymentExecutor")

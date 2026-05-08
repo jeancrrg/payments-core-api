@@ -1,0 +1,7 @@
+ALTER TABLE refunds RENAME TO refund_transactions;
+
+ALTER INDEX idx_refunds_payment_id RENAME TO idx_refund_transactions_payment_id;
+ALTER INDEX idx_refunds_stripe_refund_id RENAME TO idx_refund_transactions_stripe_refund_id;
+ALTER INDEX idx_refunds_status RENAME TO idx_refund_transactions_status;
+
+ALTER TABLE refund_transactions RENAME CONSTRAINT fk_refunds_payment TO fk_refund_transactions_payment;

@@ -1,7 +1,7 @@
 package com.billing.payments_core_api.model.mapper;
 
-import com.billing.payments_core_api.model.dto.response.RefundResponse;
-import com.billing.payments_core_api.model.entity.Refund;
+import com.billing.payments_core_api.model.dto.response.RefundTransactionResponse;
+import com.billing.payments_core_api.model.entity.RefundTransaction;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
@@ -10,11 +10,11 @@ import java.util.List;
 import java.util.UUID;
 
 @Mapper(componentModel = "spring")
-public interface RefundMapper {
+public interface RefundTransactionMapper {
 
-    RefundResponse toRefundResponse(Refund entity);
+    RefundTransactionResponse toRefundTransactionResponse(RefundTransaction entity);
 
-    List<RefundResponse> toRefundResponseList(List<Refund> entities);
+    List<RefundTransactionResponse> toRefundTransactionResponseList(List<RefundTransaction> entities);
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "status", ignore = true)
@@ -22,6 +22,6 @@ public interface RefundMapper {
     @Mapping(target = "failureReason", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
-    Refund toEntity(UUID paymentId, BigDecimal amount, String reason);
+    RefundTransaction toEntity(UUID paymentId, BigDecimal amount, String reason);
 
 }

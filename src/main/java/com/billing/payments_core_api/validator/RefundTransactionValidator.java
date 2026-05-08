@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 
 @Component
-public class RefundValidator {
+public class RefundTransactionValidator {
 
     public void validateRefundEligible(Payment payment) {
         if (payment.getStripePaymentIntentId() == null) {
