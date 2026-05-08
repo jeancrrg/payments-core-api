@@ -2,7 +2,7 @@ package com.billing.payments_core_api.service;
 
 import com.billing.payments_core_api.config.RedisConfig;
 import com.billing.payments_core_api.exception.ResourceNotFoundException;
-import com.billing.payments_core_api.mapper.CustomerMapper;
+import com.billing.payments_core_api.model.mapper.CustomerMapper;
 import com.billing.payments_core_api.model.dto.request.CustomerRequest;
 import com.billing.payments_core_api.model.dto.response.CustomerResponse;
 import com.billing.payments_core_api.model.dto.response.PageResponse;
@@ -45,11 +45,7 @@ public class CustomerService {
         log.info("m=created, Creating customer for cpf={}!", request.cpf());
 
         customerValidator.validateCpfAvailableForCreate(request.cpf());
-        Customer customer = Customer.builder()
-                .name(request.name())
-                .cpf(request.cpf())
-                .build();
-        Customer saved = customerRepository.save(customer);
+        Customer saved = customerRepository.save(customerMapper.toEntity(request));
 
         log.info("m=created, Customer for CPF={} successfully saved!", request.cpf());
         return customerMapper.toResponse(saved);

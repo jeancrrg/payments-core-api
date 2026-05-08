@@ -1,11 +1,12 @@
 package com.billing.payments_core_api.service;
 
 import com.billing.payments_core_api.config.RedisConfig;
+import com.billing.payments_core_api.exception.ExternalServiceException;
 import com.billing.payments_core_api.exception.ResourceNotFoundException;
-import com.billing.payments_core_api.integration.StripeGatewayClient;
-import com.billing.payments_core_api.model.enums.StripeStatus;
-import com.billing.payments_core_api.validator.PaymentValidator;
-import com.billing.payments_core_api.mapper.PaymentMapper;
+import com.billing.payments_core_api.integration.StripeFailureHandler;
+import com.billing.payments_core_api.integration.StripeGateway;
+import com.billing.payments_core_api.model.mapper.PaymentMapper;
+import com.billing.payments_core_api.model.mapper.StripeStatusMapper;
 import com.billing.payments_core_api.model.dto.request.PaymentRequest;
 import com.billing.payments_core_api.model.dto.response.PageResponse;
 import com.billing.payments_core_api.model.dto.response.PaymentResponse;
@@ -14,6 +15,7 @@ import com.billing.payments_core_api.model.entity.Payment;
 import com.billing.payments_core_api.model.enums.PaymentStatus;
 import com.billing.payments_core_api.repository.PaymentRepository;
 import com.billing.payments_core_api.service.async.PaymentNotificationService;
+import com.billing.payments_core_api.validator.PaymentValidator;
 import com.stripe.model.PaymentIntent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,8 +36,10 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final PaymentMapper paymentMapper;
     private final PaymentValidator paymentValidator;
-    private final StripeGatewayClient stripeClient;
     private final PaymentNotificationService notificationService;
+    private final StripeStatusMapper stripeStatusMapper;
+    private final StripeGateway stripeGateway;
+    private final StripeFailureHandler<Payment> stripeFailureHandler;
 
     @Transactional(readOnly = true)
     @Cacheable(value = RedisConfig.CACHE_PAYMENT_BY_ID, key = "#id")
@@ -74,8 +78,8 @@ public class PaymentService {
         if (payment.getStripePaymentIntentId() == null) {
             return paymentMapper.toResponse(payment);
         }
-        PaymentIntent intent = stripeClient.retrievePaymentIntent(payment.getStripePaymentIntentId());
-        PaymentStatus newStatus = mapStripeStatus(intent.getStatus());
+        PaymentIntent intent = stripeGateway.retrievePaymentIntent(payment.getStripePaymentIntentId());
+        PaymentStatus newStatus = stripeStatusMapper.toPaymentStatus(intent.getStatus());
 
         if (newStatus != payment.getStatus()) {
             log.info("m=syncWithStripe, Payment={} status changed: {} -> {}!", id, payment.getStatus(), newStatus);
@@ -87,30 +91,13 @@ public class PaymentService {
         return paymentMapper.toResponse(payment);
     }
 
-    private PaymentStatus mapStripeStatus(String stripeStatus) {
-        if (stripeStatus == null) {
-            return PaymentStatus.PENDING;
-        }
-        StripeStatus status = StripeStatus.fromValue(stripeStatus);
-        return switch (status) {
-            case PENDING -> null;
-            case SUCCEEDED -> PaymentStatus.SUCCEEDED;
-            case PROCESSING -> PaymentStatus.PROCESSING;
-            case REQUIRES_PAYMENT_METHOD,
-                 REQUIRES_CONFIRMATION,
-                 REQUIRES_ACTION,
-                 REQUIRES_CAPTURE -> PaymentStatus.PENDING;
-            case CANCELLED -> PaymentStatus.CANCELLED;
-        };
-    }
-
     @Transactional
     @Caching(evict = {@CacheEvict(value = RedisConfig.CACHE_CUSTOMER_PAYMENTS, key = "#request.customerId()")})
     public PaymentResponse createPayment(PaymentRequest request) {
         log.info("m=createPayment, Creating payment for customer={}!", request.customerId());
         paymentValidator.validateCustomerExists(request.customerId());
 
-        Payment payment = saveInitialPayment(request);
+        Payment payment = paymentRepository.save(paymentMapper.toEntity(request));
         payment = executeStripeProcessing(payment, request);
 
         notificationService.notifyPaymentProcessed(payment);
@@ -120,51 +107,22 @@ public class PaymentService {
         return paymentMapper.toResponse(payment);
     }
 
-    private Payment saveInitialPayment(PaymentRequest request) {
-        Payment payment = Payment.builder()
-                .customerId(request.customerId())
-                .amount(request.amount())
-                .currency(request.currency().toUpperCase())
-                .description(request.description())
-                .status(PaymentStatus.PENDING)
-                .build();
-        return paymentRepository.save(payment);
-    }
-
     private Payment executeStripeProcessing(Payment payment, PaymentRequest request) {
-        payment.setStatus(PaymentStatus.PROCESSING);
-        paymentRepository.save(payment);
-
         try {
-            PaymentIntent intent = stripeClient.createPaymentIntent(request.amount(), request.currency(),
+            PaymentIntent intent = stripeGateway.createPaymentIntent(request.amount(), request.currency(),
                     request.customerId().toString(), request.paymentMethodId(), request.description());
 
             payment.setStripePaymentIntentId(intent.getId());
-            payment.setStatus(mapStripeStatus(intent.getStatus()));
-            payment = paymentRepository.save(payment);
+            payment.setStatus(stripeStatusMapper.toPaymentStatus(intent.getStatus()));
+            Payment saved = paymentRepository.save(payment);
 
             log.info("m=executeStripeProcessing, Payment={} processed, stripeIntent={}, status={}!",
                     payment.getId(), intent.getId(), payment.getStatus());
-            return payment;
-        } catch (RuntimeException ex) {
-            return handleStripeError(payment, ex);
+            return saved;
+        } catch (ExternalServiceException ex) {
+            stripeFailureHandler.handle(payment, ex);
+            throw ex;
         }
-    }
-
-    private Payment handleStripeError(Payment payment, RuntimeException ex) {
-        log.error("m=handleStripeError, Payment={} failed during Stripe processing={}!", payment.getId(), ex.getMessage());
-        payment.setStatus(PaymentStatus.FAILED);
-        paymentRepository.save(payment);
-        payment.setFailureReason(truncate(ex.getMessage()));
-        notificationService.notifyPaymentProcessed(payment);
-        throw ex;
-    }
-
-    private String truncate(String text) {
-        if (text == null) {
-            return null;
-        }
-        return text.length() <= 512 ? text : text.substring(0, 512);
     }
 
     @Transactional(readOnly = true)

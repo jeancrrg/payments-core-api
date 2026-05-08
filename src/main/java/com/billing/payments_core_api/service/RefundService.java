@@ -1,16 +1,18 @@
 package com.billing.payments_core_api.service;
 
 import com.billing.payments_core_api.config.RedisConfig;
+import com.billing.payments_core_api.exception.ExternalServiceException;
 import com.billing.payments_core_api.exception.ResourceNotFoundException;
-import com.billing.payments_core_api.integration.StripeGatewayClient;
-import com.billing.payments_core_api.mapper.RefundMapper;
+import com.billing.payments_core_api.integration.StripeFailureHandler;
+import com.billing.payments_core_api.integration.StripeGateway;
+import com.billing.payments_core_api.model.mapper.RefundMapper;
+import com.billing.payments_core_api.model.mapper.StripeStatusMapper;
 import com.billing.payments_core_api.model.dto.request.RefundRequest;
 import com.billing.payments_core_api.model.dto.response.RefundResponse;
 import com.billing.payments_core_api.model.entity.Payment;
 import com.billing.payments_core_api.model.entity.Refund;
 import com.billing.payments_core_api.model.enums.PaymentStatus;
 import com.billing.payments_core_api.model.enums.RefundStatus;
-import com.billing.payments_core_api.model.enums.StripeStatus;
 import com.billing.payments_core_api.repository.RefundRepository;
 import com.billing.payments_core_api.service.async.PaymentNotificationService;
 import com.billing.payments_core_api.validator.RefundValidator;
@@ -35,8 +37,10 @@ public class RefundService {
     private final RefundMapper refundMapper;
     private final RefundValidator refundValidator;
     private final PaymentService paymentService;
-    private final StripeGatewayClient stripeClient;
     private final PaymentNotificationService notificationService;
+    private final StripeStatusMapper stripeStatusMapper;
+    private final StripeGateway stripeGateway;
+    private final StripeFailureHandler<Refund> stripeFailureHandler;
 
     @Transactional(readOnly = true)
     @Cacheable(value = RedisConfig.CACHE_REFUND_BY_ID, key = "#id")
@@ -61,8 +65,8 @@ public class RefundService {
         BigDecimal alreadyRefunded = getAlreadyRefunded(payment.getId());
         BigDecimal refundAmount = resolveRefundAmount(request, payment, alreadyRefunded);
         refundValidator.validateRefundAmounts(refundAmount, alreadyRefunded, payment.getAmount());
-        Refund refund = buildAndSaveRefund(payment.getId(), refundAmount, request.reason());
-        refund = executeStripeRefund(refund, payment, refundAmount, alreadyRefunded);
+        Refund refund = refundRepository.save(refundMapper.toEntity(payment.getId(), refundAmount, request.reason()));
+        executeStripeRefund(refund, payment, refundAmount, alreadyRefunded);
         notificationService.notifyRefundProcessed(refund);
         return refundMapper.toRefundResponse(refund);
     }
@@ -78,28 +82,19 @@ public class RefundService {
                 : payment.getAmount().subtract(alreadyRefunded);
     }
 
-    private Refund buildAndSaveRefund(UUID paymentId, BigDecimal amount, String reason) {
-        Refund refund = Refund.builder()
-                .paymentId(paymentId)
-                .amount(amount)
-                .reason(reason)
-                .status(RefundStatus.PENDING)
-                .build();
-        return refundRepository.save(refund);
-    }
-
-    private Refund executeStripeRefund(Refund refund, Payment payment, BigDecimal refundAmount, BigDecimal alreadyRefunded) {
+    private void executeStripeRefund(Refund refund, Payment payment, BigDecimal refundAmount, BigDecimal alreadyRefunded) {
         try {
-            com.stripe.model.Refund stripeRefund = stripeClient.createRefund(
-                    payment.getStripePaymentIntentId(), refundAmount,
-                    payment.getCurrency(), refund.getReason());
+            com.stripe.model.Refund stripeRefund = stripeGateway.createRefund(
+                    payment.getStripePaymentIntentId(), refundAmount, payment.getCurrency(), refund.getReason());
+
             refund.setStripeRefundId(stripeRefund.getId());
-            refund.setStatus(mapStripeStatus(stripeRefund.getStatus()));
-            refund = refundRepository.save(refund);
+            refund.setStatus(stripeStatusMapper.toRefundStatus(stripeRefund.getStatus()));
+
+            refundRepository.save(refund);
             updatePaymentRefundStatus(payment, alreadyRefunded.add(refundAmount));
-            return refund;
-        } catch (RuntimeException ex) {
-            return handleRefundError(refund, ex);
+        } catch (ExternalServiceException ex) {
+            stripeFailureHandler.handle(refund, ex);
+            throw ex;
         }
     }
 
@@ -109,35 +104,6 @@ public class RefundService {
         } else {
             payment.setStatus(PaymentStatus.PARTIALLY_REFUNDED);
         }
-    }
-
-    private Refund handleRefundError(Refund refund, RuntimeException ex) {
-        log.error("m=handleRefundError, Refund={} failed={}", refund.getId(), ex.getMessage());
-        refund.setStatus(RefundStatus.FAILED);
-        refund.setFailureReason(truncate(ex.getMessage()));
-        refundRepository.save(refund);
-        notificationService.notifyRefundProcessed(refund);
-        throw ex;
-    }
-
-    private RefundStatus mapStripeStatus(String stripeStatus) {
-        if (stripeStatus == null) {
-            return RefundStatus.PENDING;
-        }
-        StripeStatus status = StripeStatus.fromValue(stripeStatus);
-        return switch (status) {
-            case SUCCEEDED -> RefundStatus.SUCCEEDED;
-            case PENDING -> RefundStatus.PENDING;
-            case CANCELLED -> RefundStatus.CANCELLED;
-            default -> RefundStatus.FAILED;
-        };
-    }
-
-    private String truncate(String text) {
-        if (text == null) {
-            return null;
-        }
-        return text.length() <= 512 ? text : text.substring(0, 512);
     }
 
     private Refund getOrThrow(UUID id) {

@@ -16,7 +16,7 @@ import java.math.RoundingMode;
 
 @Slf4j
 @Component
-public class StripeGatewayClient {
+public class StripeGatewayClient implements StripeGateway {
 
     private static final String RESILIENCE_INSTANCE = "stripeApi";
 
@@ -114,4 +114,5 @@ public class StripeGatewayClient {
             default -> RefundCreateParams.Reason.REQUESTED_BY_CUSTOMER;
         };
     }
+
 }
