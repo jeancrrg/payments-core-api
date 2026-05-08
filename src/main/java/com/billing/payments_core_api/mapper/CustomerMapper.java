@@ -8,4 +8,5 @@ import org.mapstruct.Mapper;
 public interface CustomerMapper {
 
     CustomerResponse toResponse(Customer entity);
+
 }

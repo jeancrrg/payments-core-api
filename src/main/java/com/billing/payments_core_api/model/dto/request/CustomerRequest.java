@@ -1,6 +1,6 @@
 package com.billing.payments_core_api.model.dto.request;
 
-import com.billing.payments_core_api.validation.ValidCpf;
+import com.billing.payments_core_api.validator.ValidCpf;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 

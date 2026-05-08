@@ -55,7 +55,8 @@ public class StripeGatewayClient {
         }
     }
 
-    private PaymentIntentCreateParams buildPaymentIntentParams(BigDecimal amount, String currency, String customerId, String paymentMethodId, String description) {
+    private PaymentIntentCreateParams buildPaymentIntentParams(BigDecimal amount, String currency, String customerId,
+                                                               String paymentMethodId, String description) {
         PaymentIntentCreateParams.Builder builder = PaymentIntentCreateParams.builder()
                 .setAmount(toMinorUnits(amount, currency))
                 .setCurrency(currency.toLowerCase())

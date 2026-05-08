@@ -1,18 +1,19 @@
 package com.billing.payments_core_api.service;
 
 import com.billing.payments_core_api.config.RedisConfig;
-import com.billing.payments_core_api.exception.BusinessException;
 import com.billing.payments_core_api.exception.ResourceNotFoundException;
 import com.billing.payments_core_api.integration.StripeGatewayClient;
 import com.billing.payments_core_api.mapper.RefundMapper;
 import com.billing.payments_core_api.model.dto.request.RefundRequest;
 import com.billing.payments_core_api.model.dto.response.RefundResponse;
 import com.billing.payments_core_api.model.entity.Payment;
-import com.billing.payments_core_api.model.enums.PaymentStatus;
 import com.billing.payments_core_api.model.entity.Refund;
+import com.billing.payments_core_api.model.enums.PaymentStatus;
 import com.billing.payments_core_api.model.enums.RefundStatus;
+import com.billing.payments_core_api.model.enums.StripeStatus;
 import com.billing.payments_core_api.repository.RefundRepository;
 import com.billing.payments_core_api.service.async.PaymentNotificationService;
+import com.billing.payments_core_api.validator.RefundValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -31,18 +32,17 @@ import java.util.UUID;
 public class RefundService {
 
     private final RefundRepository refundRepository;
+    private final RefundMapper refundMapper;
+    private final RefundValidator refundValidator;
     private final PaymentService paymentService;
     private final StripeGatewayClient stripeClient;
     private final PaymentNotificationService notificationService;
-    private final RefundMapper refundMapper;
 
     @Transactional(readOnly = true)
     @Cacheable(value = RedisConfig.CACHE_REFUND_BY_ID, key = "#id")
     public RefundResponse findById(UUID id) {
-        log.debug("Cache MISS for refund id={} - querying database", id);
-        Refund refund = refundRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Refund not found: " + id));
-        return refundMapper.toRefundResponse(refund);
+        log.debug("m=findById, Cache MISS for refund id={} - querying database!", id);
+        return refundMapper.toRefundResponse(getOrThrow(id));
     }
 
     @Transactional(readOnly = true)
@@ -57,28 +57,14 @@ public class RefundService {
     })
     public RefundResponse requestRefund(RefundRequest request) {
         Payment payment = paymentService.findEntityById(request.paymentId());
-        validateRefundEligible(payment);
+        refundValidator.validateRefundEligible(payment);
         BigDecimal alreadyRefunded = getAlreadyRefunded(payment.getId());
         BigDecimal refundAmount = resolveRefundAmount(request, payment, alreadyRefunded);
-        validateRefundAmounts(refundAmount, alreadyRefunded, payment.getAmount());
+        refundValidator.validateRefundAmounts(refundAmount, alreadyRefunded, payment.getAmount());
         Refund refund = buildAndSaveRefund(payment.getId(), refundAmount, request.reason());
         refund = executeStripeRefund(refund, payment, refundAmount, alreadyRefunded);
         notificationService.notifyRefundProcessed(refund);
         return refundMapper.toRefundResponse(refund);
-    }
-
-    private void validateRefundEligible(Payment payment) {
-        if (payment.getStripePaymentIntentId() == null) {
-            throw new BusinessException("Payment has no associated Stripe transaction and cannot be refunded");
-        }
-        PaymentStatus s = payment.getStatus();
-        if (s == PaymentStatus.PENDING || s == PaymentStatus.PROCESSING
-                || s == PaymentStatus.FAILED || s == PaymentStatus.CANCELLED) {
-            throw new BusinessException("Payment in status " + s + " cannot be refunded");
-        }
-        if (s == PaymentStatus.REFUNDED) {
-            throw new BusinessException("Payment is already fully refunded");
-        }
     }
 
     private BigDecimal getAlreadyRefunded(UUID paymentId) {
@@ -90,18 +76,6 @@ public class RefundService {
         return request.amount() != null
                 ? request.amount()
                 : payment.getAmount().subtract(alreadyRefunded);
-    }
-
-    private void validateRefundAmounts(BigDecimal refundAmount, BigDecimal alreadyRefunded, BigDecimal paymentAmount) {
-        if (refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BusinessException("Refund amount must be greater than zero");
-        }
-        BigDecimal totalAfter = alreadyRefunded.add(refundAmount);
-        if (totalAfter.compareTo(paymentAmount) > 0) {
-            throw new BusinessException(
-                    "Refund amount " + refundAmount + " exceeds remaining refundable amount " +
-                            paymentAmount.subtract(alreadyRefunded));
-        }
     }
 
     private Refund buildAndSaveRefund(UUID paymentId, BigDecimal amount, String reason) {
@@ -120,7 +94,7 @@ public class RefundService {
                     payment.getStripePaymentIntentId(), refundAmount,
                     payment.getCurrency(), refund.getReason());
             refund.setStripeRefundId(stripeRefund.getId());
-            refund.setStatus(mapStripeRefundStatus(stripeRefund.getStatus()));
+            refund.setStatus(mapStripeStatus(stripeRefund.getStatus()));
             refund = refundRepository.save(refund);
             updatePaymentRefundStatus(payment, alreadyRefunded.add(refundAmount));
             return refund;
@@ -138,7 +112,7 @@ public class RefundService {
     }
 
     private Refund handleRefundError(Refund refund, RuntimeException ex) {
-        log.error("Refund {} failed: {}", refund.getId(), ex.getMessage());
+        log.error("m=handleRefundError, Refund={} failed={}", refund.getId(), ex.getMessage());
         refund.setStatus(RefundStatus.FAILED);
         refund.setFailureReason(truncate(ex.getMessage()));
         refundRepository.save(refund);
@@ -146,14 +120,15 @@ public class RefundService {
         throw ex;
     }
 
-    private RefundStatus mapStripeRefundStatus(String stripeStatus) {
+    private RefundStatus mapStripeStatus(String stripeStatus) {
         if (stripeStatus == null) {
             return RefundStatus.PENDING;
         }
-        return switch (stripeStatus.toLowerCase()) {
-            case "succeeded" -> RefundStatus.SUCCEEDED;
-            case "pending" -> RefundStatus.PENDING;
-            case "canceled" -> RefundStatus.CANCELLED;
+        StripeStatus status = StripeStatus.fromValue(stripeStatus);
+        return switch (status) {
+            case SUCCEEDED -> RefundStatus.SUCCEEDED;
+            case PENDING -> RefundStatus.PENDING;
+            case CANCELLED -> RefundStatus.CANCELLED;
             default -> RefundStatus.FAILED;
         };
     }
@@ -163,6 +138,11 @@ public class RefundService {
             return null;
         }
         return text.length() <= 512 ? text : text.substring(0, 512);
+    }
+
+    private Refund getOrThrow(UUID id) {
+        return refundRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Refund not found: " + id + "!"));
     }
 
 }

@@ -30,7 +30,8 @@ public interface CustomerApi {
     })
     ResponseEntity<PageResponse<CustomerResponse>> findAll(@ParameterObject Pageable pageable);
 
-    @Operation(summary = "Create a new customer", description = "Registers a customer with name and CPF (unique, validated). Returns 201 with the created customer.")
+    @Operation(summary = "Create a new customer", description = "Registers a customer with name and CPF (unique, validated). " +
+            "Returns 201 with the created customer.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Customer created",
                     content = @Content(schema = @Schema(implementation = CustomerResponse.class))),

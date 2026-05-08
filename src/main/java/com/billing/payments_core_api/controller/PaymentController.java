@@ -5,7 +5,6 @@ import com.billing.payments_core_api.model.dto.request.PaymentRequest;
 import com.billing.payments_core_api.model.dto.response.PageResponse;
 import com.billing.payments_core_api.model.dto.response.PaymentResponse;
 import com.billing.payments_core_api.model.dto.response.PaymentStatusResponse;
-import com.billing.payments_core_api.model.enums.PaymentStatus;
 import com.billing.payments_core_api.service.PaymentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
-import java.util.Map;
 import java.util.UUID;
 
 @RestController

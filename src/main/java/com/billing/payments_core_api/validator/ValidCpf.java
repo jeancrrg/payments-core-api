@@ -1,4 +1,4 @@
-package com.billing.payments_core_api.validation;
+package com.billing.payments_core_api.validator;
 
 import jakarta.validation.Constraint;
 import jakarta.validation.Payload;

@@ -3,7 +3,7 @@ package com.billing.payments_core_api.model.dto.response;
 import com.billing.payments_core_api.model.enums.RefundStatus;
 
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record RefundResponse(
@@ -14,8 +14,8 @@ public record RefundResponse(
         String reason,
         RefundStatus status,
         String failureReason,
-        OffsetDateTime createdAt,
-        OffsetDateTime updatedAt
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
 ) {
 
 }

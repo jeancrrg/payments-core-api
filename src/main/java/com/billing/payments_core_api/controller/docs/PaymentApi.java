@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.Map;
 import java.util.UUID;
 
 @Tag(name = "Payments", description = "Operations to create and consult payments")
@@ -40,10 +39,12 @@ public interface PaymentApi {
             @Parameter(description = "Customer id") @PathVariable UUID customerId,
             @Parameter(hidden = true) Pageable pageable);
 
-    @Operation(summary = "Re-sync payment with Stripe", description = "Calls Stripe to refresh the payment status (with retry). Invalidates the cache.")
+    @Operation(summary = "Re-sync payment with Stripe", description = "Calls Stripe to refresh the payment status (with retry). " +
+            "Invalidates the cache.")
     ResponseEntity<PaymentResponse> sync(@PathVariable UUID id);
 
-    @Operation(summary = "Create a new payment", description = "Creates a payment via Stripe (with Resilience4j retry). Returns 201 with the persisted payment.")
+    @Operation(summary = "Create a new payment", description = "Creates a payment via Stripe (with Resilience4j retry). " +
+            "Returns 201 with the persisted payment.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Payment created",
                     content = @Content(schema = @Schema(implementation = PaymentResponse.class))),

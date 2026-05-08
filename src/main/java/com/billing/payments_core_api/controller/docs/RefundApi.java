@@ -25,7 +25,8 @@ public interface RefundApi {
     @Operation(summary = "List refunds for a payment")
     ResponseEntity<List<RefundResponse>> findByPayment(@PathVariable UUID paymentId);
 
-    @Operation(summary = "Request a refund", description = "Issues a refund through Stripe (with retry). If amount is omitted, the remaining refundable amount is refunded.")
+    @Operation(summary = "Request a refund", description = "Issues a refund through Stripe (with retry). " +
+            "If amount is omitted, the remaining refundable amount is refunded.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Refund created"),
             @ApiResponse(responseCode = "404", description = "Payment not found"),
