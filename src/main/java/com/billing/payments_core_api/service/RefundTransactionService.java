@@ -62,14 +62,20 @@ public class RefundTransactionService {
     public RefundTransactionResponse requestRefund(RefundTransactionRequest request) {
         Payment payment = paymentService.findEntityById(request.paymentId());
         refundTransactionValidator.validateRefundEligible(payment);
+
         BigDecimal alreadyRefunded = getAlreadyRefunded(payment.getId());
         BigDecimal refundAmount = resolveRefundAmount(request, payment, alreadyRefunded);
         refundTransactionValidator.validateRefundAmounts(refundAmount, alreadyRefunded, payment.getAmount());
-        RefundTransaction refundTransaction = refundTransactionRepository.save(
-                refundTransactionMapper.toEntity(payment.getId(), refundAmount, request.reason()));
-        executeStripeRefund(refundTransaction, payment, refundAmount, alreadyRefunded);
+
+        RefundTransaction refundTransaction = createPendingRefund(payment.getId(), refundAmount, request.reason());
+        processStripeRefund(refundTransaction, payment, refundAmount, alreadyRefunded);
         notificationService.notifyRefundProcessed(refundTransaction);
+
         return refundTransactionMapper.toRefundTransactionResponse(refundTransaction);
+    }
+
+    private RefundTransaction createPendingRefund(UUID paymentId, BigDecimal amount, String reason) {
+        return refundTransactionRepository.save(refundTransactionMapper.toEntity(paymentId, amount, reason));
     }
 
     private BigDecimal getAlreadyRefunded(UUID paymentId) {
@@ -83,20 +89,22 @@ public class RefundTransactionService {
                 : payment.getAmount().subtract(alreadyRefunded);
     }
 
-    private void executeStripeRefund(RefundTransaction refundTransaction, Payment payment, BigDecimal refundAmount, BigDecimal alreadyRefunded) {
+    private void processStripeRefund(RefundTransaction refundTransaction, Payment payment, BigDecimal refundAmount, BigDecimal alreadyRefunded) {
         try {
             com.stripe.model.Refund stripeRefund = stripeGateway.createRefund(
                     payment.getStripePaymentIntentId(), refundAmount, payment.getCurrency(), refundTransaction.getReason());
-
-            refundTransaction.setStripeRefundId(stripeRefund.getId());
-            refundTransaction.setStatus(stripeStatusMapper.toRefundStatus(stripeRefund.getStatus()));
-
-            refundTransactionRepository.save(refundTransaction);
+            applyStripeResult(refundTransaction, stripeRefund);
             updatePaymentRefundStatus(payment, alreadyRefunded.add(refundAmount));
         } catch (ExternalServiceException ex) {
             stripeFailureHandler.handle(refundTransaction, ex);
             throw ex;
         }
+    }
+
+    private void applyStripeResult(RefundTransaction refundTransaction, com.stripe.model.Refund stripeRefund) {
+        refundTransaction.setStripeRefundId(stripeRefund.getId());
+        refundTransaction.setStatus(stripeStatusMapper.toRefundStatus(stripeRefund.getStatus()));
+        refundTransactionRepository.save(refundTransaction);
     }
 
     private void updatePaymentRefundStatus(Payment payment, BigDecimal totalRefunded) {
