@@ -1,4 +1,3 @@
--- Tabela de clientes cadastrados na plataforma
 CREATE TABLE customers (
     id          UUID         PRIMARY KEY,
     name        VARCHAR(255) NOT NULL,

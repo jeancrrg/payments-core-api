@@ -1,4 +1,3 @@
--- Tabela de pagamentos orquestrados pelo gateway Stripe
 CREATE TABLE payments (
     id                          UUID           PRIMARY KEY,
     customer_id                 UUID           NOT NULL,
