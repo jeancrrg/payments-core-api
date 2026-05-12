@@ -23,12 +23,10 @@ public class StripeConfig {
 
     @PostConstruct
     void init() {
-        if (stripeApiKey == null || stripeApiKey.isBlank() || "sk_test_replace_me".equals(stripeApiKey)) {
-            log.warn("Stripe API key is using the placeholder value. Set STRIPE_API_KEY env var with a real sk_test_ key.");
-        }
         Stripe.apiKey = stripeApiKey;
         Stripe.setConnectTimeout(connectTimeoutMs);
         Stripe.setReadTimeout(readTimeoutMs);
         log.info("Stripe SDK initialized (connectTimeout={}ms, readTimeout={}ms)", connectTimeoutMs, readTimeoutMs);
     }
+
 }

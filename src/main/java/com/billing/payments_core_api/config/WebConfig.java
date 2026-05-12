@@ -37,11 +37,6 @@ public class WebConfig implements WebMvcConfigurer {
         return new CorrelationIdFilter();
     }
 
-    /**
-     * Adds a per-request correlation id to the MDC and response header so that
-     * every log line for the request can be tied together (helpful for debugging
-     * Resilience4j retries and async operations).
-     */
     static class CorrelationIdFilter extends OncePerRequestFilter implements Ordered {
         @Override
         protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
@@ -64,4 +59,5 @@ public class WebConfig implements WebMvcConfigurer {
             return Ordered.HIGHEST_PRECEDENCE;
         }
     }
+
 }
