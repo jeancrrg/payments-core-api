@@ -1,5 +1,6 @@
 package com.billing.payments_core_api.controller;
 
+import com.billing.payments_core_api.controller.docs.AuthApi;
 import com.billing.payments_core_api.model.dto.request.AuthRequest;
 import com.billing.payments_core_api.model.dto.response.AuthResponse;
 import com.billing.payments_core_api.service.AuthService;
@@ -14,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/v1/auth")
 @RequiredArgsConstructor
-public class AuthController {
+public class AuthController implements AuthApi {
 
     private final AuthService authService;
 
