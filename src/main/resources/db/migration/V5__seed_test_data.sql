@@ -1,5 +1,5 @@
 INSERT INTO app_users (username, password, role, active, created_at)
-VALUES ('admin', '$2a$12$8WoRLwS0nGbXQYWP1MPCT.8EFMTWUm.x5/hSx5eSyWjpKHPiWbmbu', 'ADMIN', true, now());
+VALUES ('admin', '$2a$10$MDMucu4PuKG5eUh2hKEtcOi7nlBu0dUY/mRTKtrrbVvZmWvF0hMx.', 'ADMIN', true, now());
 
 INSERT INTO customers (id, name, cpf, created_at, updated_at) VALUES
     ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Alice Souza',  '52998224725', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
